@@ -1,0 +1,231 @@
+---
+title: "Logger"
+description: "Rich console-based logging with color-coded output and status indicators"
+---
+
+## Overview
+
+The logger module provides a simple, user-friendly logging interface built on the Rich library. It supports color-coded log levels, formatted output, and animated status indicators.
+
+**Source:** `docugen/utils/logger.py`
+
+---
+
+## DocuGenLogger
+
+```python
+class DocuGenLogger:
+    def __init__(self) -> None
+```
+
+Main logging class with Rich console output.
+
+### Attributes
+
+<ResponseField name="console" type="rich.console.Console">
+  Rich Console instance used for all output rendering.
+</ResponseField>
+
+### Methods
+
+#### info()
+
+```python
+def info(self, message: str) -> None
+```
+
+Log informational message with cyan "INFO" prefix.
+
+<ParamField path="message" type="str" required>
+  Message to log.
+</ParamField>
+
+**Output format:** `[cyan]INFO[/] {message}`
+
+---
+
+#### warning()
+
+```python
+def warning(self, message: str) -> None
+```
+
+Log warning message with yellow "WARN" prefix.
+
+<ParamField path="message" type="str" required>
+  Warning message to log.
+</ParamField>
+
+**Output format:** `[yellow]WARN[/] {message}`
+
+---
+
+#### error()
+
+```python
+def error(self, message: str) -> None
+```
+
+Log error message with red "ERROR" prefix.
+
+<ParamField path="message" type="str" required>
+  Error message to log.
+</ParamField>
+
+**Output format:** `[red]ERROR[/] {message}`
+
+---
+
+#### success()
+
+```python
+def success(self, message: str) -> None
+```
+
+Log success message with green "OK" prefix.
+
+<ParamField path="message" type="str" required>
+  Success message to log.
+</ParamField>
+
+**Output format:** `[green]OK[/] {message}`
+
+---
+
+#### status()
+
+```python
+def status(self, message: str)
+```
+
+Create an animated status indicator context manager.
+
+<ParamField path="message" type="str" required>
+  Status message to display with spinner.
+</ParamField>
+
+<ResponseField name="return" type="rich.console.Status">
+  Rich Status context manager with "dots" spinner animation.
+</ResponseField>
+
+**Usage:** Use with `with` statement for automatic cleanup.
+
+---
+
+## get_logger()
+
+```python
+def get_logger() -> DocuGenLogger
+```
+
+Factory function to create a new logger instance.
+
+### Returns
+
+<ResponseField name="return" type="DocuGenLogger">
+  New `DocuGenLogger` instance.
+</ResponseField>
+
+---
+
+## Usage Examples
+
+### Basic Logging
+
+```python
+from docugen.utils.logger import get_logger
+
+logger = get_logger()
+
+logger.info("Starting documentation generation...")
+logger.warning("No .env file found, using environment variables")
+logger.error("API key not configured")
+logger.success("README.md generated successfully")
+```
+
+**Output:**
+```
+INFO Starting documentation generation...
+WARN No .env file found, using environment variables
+ERROR API key not configured
+OK README.md generated successfully
+```
+
+### Status Indicator
+
+```python
+from docugen.utils.logger import get_logger
+import time
+
+logger = get_logger()
+
+# Animated spinner during long operations
+with logger.status("Analyzing codebase..."):
+    time.sleep(3)  # Simulate work
+    # Spinner shows "dots" animation
+
+logger.success("Analysis complete")
+```
+
+### In Application Code
+
+```python
+from docugen.utils.logger import get_logger
+from pathlib import Path
+
+def generate_docs(project_path: Path) -> None:
+    logger = get_logger()
+    
+    logger.info(f"Processing project: {project_path}")
+    
+    if not project_path.exists():
+        logger.error("Project path does not exist")
+        return
+    
+    with logger.status("Generating documentation with AI..."):
+        # AI generation logic here
+        result = call_gemini_api()
+    
+    if result.success:
+        logger.success(f"Documentation written to {result.output_path}")
+    else:
+        logger.error(f"Generation failed: {result.error}")
+```
+
+---
+
+## Log Level Colors
+
+| Level | Prefix | Color | Use Case |
+|-------|--------|-------|----------|
+| `info()` | `INFO` | Cyan | General information, progress updates |
+| `warning()` | `WARN` | Yellow | Non-critical issues, deprecations |
+| `error()` | `ERROR` | Red | Failures, exceptions, critical problems |
+| `success()` | `OK` | Green | Successful operations, completions |
+
+---
+
+## Rich Console Features
+
+The logger uses Rich's Console for:
+- **Color and styling** - Automatic terminal color support detection
+- **Unicode support** - Emoji and special characters
+- **Width detection** - Automatic terminal width adaptation
+- **Status animations** - Smooth spinner rendering
+
+---
+
+## Design Notes
+
+- **No file output** - All logging goes to console only
+- **Stateless** - Each `get_logger()` call creates independent instance
+- **Simple API** - No log levels, configuration, or filtering
+- **User-focused** - Designed for CLI output, not debugging
+
+---
+
+## Related
+
+- [CLI Reference](/api/cli) - Uses logger for user feedback
+- [Gemini Client](/api/gemini-client) - Logs API interactions
+- [Main Module](/api/main) - Application-wide logging

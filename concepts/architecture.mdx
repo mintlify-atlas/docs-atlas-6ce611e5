@@ -1,0 +1,228 @@
+---
+title: "Architecture Overview"
+description: "Understand DocuGen AI's three-phase documentation pipeline"
+---
+
+## Introduction
+
+DocuGen AI uses a **three-phase pipeline** to transform Python source code into comprehensive documentation. Each phase has a specific responsibility, ensuring separation of concerns and maintainability.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DocuGen AI Pipeline                      │
+└─────────────────────────────────────────────────────────────┘
+
+  Phase 1              Phase 2              Phase 3
+┌──────────┐       ┌──────────┐       ┌──────────────┐
+│ Ingestion│ ───▶  │  Parsing │ ───▶  │  Synthesis   │
+│    &     │       │    &     │       │      &       │
+│ Scanning │       │Normaliz. │       │  Rendering   │
+└──────────┘       └──────────┘       └──────────────┘
+     │                  │                     │
+     ▼                  ▼                     ▼
+ Python Files      AST Metadata         Markdown Docs
+```
+
+---
+
+## Phase 1: Ingestion & Scanning
+
+**Purpose:** Discover all relevant Python files in a project while respecting `.gitignore` rules.
+
+### Implementation
+
+The scanning phase is implemented in `docugen/core/scanner.py:94` with the `scan_python_files()` function:
+
+```python
+def scan_python_files(root_path: str | Path) -> list[Path]:
+    root = Path(root_path).expanduser().resolve()
+    
+    if not root.exists():
+        raise FileNotFoundError(f"Path does not exist: {root}")
+    
+    if root.is_file():
+        return [root] if root.suffix == ".py" else []
+    
+    rules = _load_gitignore_rules(root)
+    discovered: list[Path] = []
+    # ... file discovery logic
+```
+
+<Info>
+The scanner automatically excludes common directories like `__pycache__`, `.git`, `.venv`, `build`, and `dist` to avoid processing unnecessary files.
+</Info>
+
+### Key Features
+
+1. **GitIgnore Support**: Parses `.gitignore` files and respects negation patterns, directory-only rules, and anchored patterns
+2. **Smart Filtering**: Built-in exclusions for common development directories (defined in `scanner.py:8`)
+3. **Single File or Directory**: Handles both individual Python files and entire project directories
+4. **Relative Path Tracking**: Maintains relative paths for cleaner documentation references
+
+### GitIgnore Rule Parsing
+
+The scanner implements a sophisticated gitignore parser (`scanner.py:28-61`) that handles:
+
+- **Negation patterns** (`!important.py`)
+- **Directory-only rules** (`build/`)
+- **Anchored patterns** (`/dist`)
+- **Glob patterns** (`*.pyc`, `__pycache__/*`)
+
+<Tip>
+If you want to document a specific file that's normally ignored, you can pass the file path directly instead of a directory.
+</Tip>
+
+---
+
+## Phase 2: Parsing & Normalization
+
+**Purpose:** Extract structured metadata from Python source code using Abstract Syntax Trees (AST) and normalize it for AI consumption.
+
+### 2.1 AST Parsing
+
+Implemented in `docugen/core/parser.py:81`, the `parse_file()` function extracts:
+
+- **Classes** with base classes and docstrings
+- **Methods** within classes (including async methods)
+- **Functions** at module level
+- **Type annotations** for arguments and return values
+- **Default values** for function parameters
+- **Code metrics** (line count, class count, function count)
+
+```python
+def parse_file(file_path: str | Path, root: str | Path | None = None) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "path": relative_path,
+        "classes": [],
+        "functions": [],
+        "metrics": {
+            "line_count": 0,
+            "class_count": 0,
+            "method_count": 0,
+            "function_count": 0,
+        },
+        "errors": [],
+    }
+```
+
+<Note>
+The parser uses Python's built-in `ast` module to ensure accurate parsing. Syntax errors are caught and recorded in the `errors` field rather than causing the entire process to fail.
+</Note>
+
+### 2.2 Normalization
+
+The processor (`docugen/core/processor.py:57`) normalizes raw AST data into a clean, consistent format:
+
+```python
+def prepare_for_ai(parsed_files: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    files: list[dict[str, Any]] = []
+    
+    totals = {
+        "file_count": 0,
+        "class_count": 0,
+        "method_count": 0,
+        "function_count": 0,
+        "error_count": 0,
+    }
+    # ... normalization logic
+```
+
+**Normalization includes:**
+
+- Converting all values to clean strings (`_as_clean_text()` at `processor.py:6`)
+- Standardizing function signatures with argument kinds (positional, keyword-only, variadic)
+- Aggregating project-level statistics
+- Filtering out empty or null values
+
+---
+
+## Phase 3: Synthesis & Rendering
+
+**Purpose:** Generate human-readable documentation using AI and template-based rendering.
+
+### 3.1 AI Synthesis
+
+The `GeminiClient` (`docugen/api/gemini_client.py:23`) sends normalized metadata to Google's Gemini API:
+
+```python
+def generate_markdown(self, project_metadata: dict[str, Any], user_prompt: str | None = None) -> str:
+    content = self._build_content(project_metadata, user_prompt=user_prompt)
+    
+    response = self.client.models.generate_content(
+        model=self.model,
+        contents=content,
+        config={"system_instruction": self.system_prompt},
+    )
+    
+    return self._extract_text(response)
+```
+
+The AI receives:
+- JSON-formatted project metadata
+- A system prompt defining the Technical Writer role
+- Optional user-provided instructions
+
+### 3.2 Template Rendering
+
+The final step uses Jinja2 templates (`docugen/templates/engine.py:11`) to combine:
+
+- AI-generated content
+- Project metadata (file counts, class counts)
+- Custom branding and structure
+
+```python
+class TemplateEngine:
+    def __init__(self, template_dir: str | Path | None = None) -> None:
+        base_dir = Path(template_dir) if template_dir else Path(__file__).resolve().parent
+        self.environment = Environment(
+            loader=FileSystemLoader(str(base_dir)),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+```
+
+<Info>
+The template engine supports custom templates. By default, it uses `default_readme.md.j2` but you can provide your own template directory.
+</Info>
+
+---
+
+## Data Flow Summary
+
+| Phase | Input | Output | Key Module |
+|-------|-------|--------|------------|
+| **Ingestion** | Project directory or file path | List of `.py` file paths | `scanner.py` |
+| **Parsing** | Python source files | AST metadata (classes, functions, signatures) | `parser.py` |
+| **Normalization** | Raw AST metadata | Clean, structured JSON | `processor.py` |
+| **AI Synthesis** | Normalized metadata | AI-generated Markdown content | `gemini_client.py` |
+| **Rendering** | AI content + metadata | Final documentation file | `engine.py` |
+
+---
+
+## Error Handling
+
+Each phase includes robust error handling:
+
+- **Scanner**: Checks for path existence, handles permission errors
+- **Parser**: Catches syntax errors and continues processing other files
+- **Processor**: Filters invalid data and tracks error counts
+- **Gemini Client**: Wraps API errors with context
+- **Template Engine**: Validates template existence
+
+<Tip>
+Errors are collected rather than causing immediate failures, allowing DocuGen AI to generate partial documentation even when some files have issues.
+</Tip>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AST Parsing Deep Dive" icon="code" href="/concepts/ast-parsing">
+    Learn how metadata is extracted from Python code
+  </Card>
+  <Card title="AI Generation" icon="sparkles" href="/concepts/ai-generation">
+    Understand how Gemini transforms metadata into docs
+  </Card>
+</CardGroup>

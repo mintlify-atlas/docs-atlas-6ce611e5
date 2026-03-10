@@ -1,0 +1,407 @@
+---
+title: '.gitignore Support'
+description: 'Deep dive into gitignore parsing and file filtering'
+---
+
+## Overview
+
+DocuGen AI respects `.gitignore` rules to exclude files from documentation generation. The scanner (docugen/core/scanner.py) implements a robust gitignore parser that follows Git's matching behavior.
+
+## Default Ignored Directories
+
+Before parsing `.gitignore`, DocuGen excludes common build and cache directories:
+
+```python
+DEFAULT_IGNORED_DIRS = {
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".pytest_cache",
+    "build",
+    "dist",
+}
+```
+
+<Warning>
+  These directories are **always ignored**, even if not listed in `.gitignore`.
+</Warning>
+
+## GitIgnore Rule Structure
+
+Each rule is parsed into a `GitIgnoreRule` dataclass (docugen/core/scanner.py:20):
+
+```python
+@dataclass(frozen=True)
+class GitIgnoreRule:
+    pattern: str        # The glob pattern to match
+    negated: bool       # True if pattern starts with !
+    directory_only: bool  # True if pattern ends with /
+    anchored: bool      # True if pattern starts with /
+```
+
+### Rule Properties
+
+<ParamField path="pattern" type="str">
+  The glob pattern after removing special prefixes/suffixes
+</ParamField>
+
+<ParamField path="negated" type="bool">
+  Whether this rule re-includes files (starts with `!`)
+</ParamField>
+
+<ParamField path="directory_only" type="bool">
+  Whether the rule only matches directories (ends with `/`)
+</ParamField>
+
+<ParamField path="anchored" type="bool">
+  Whether the pattern is anchored to the repository root (starts with `/`)
+</ParamField>
+
+## Parsing Algorithm
+
+The `_load_gitignore_rules()` function (docugen/core/scanner.py:28) parses `.gitignore`:
+
+```python
+def _load_gitignore_rules(root: Path) -> list[GitIgnoreRule]:
+    gitignore_path = root / ".gitignore"
+    if not gitignore_path.exists():
+        return []
+
+    rules: list[GitIgnoreRule] = []
+    for raw_line in gitignore_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        negated = line.startswith("!")
+        if negated:
+            line = line[1:]
+
+        directory_only = line.endswith("/")
+        if directory_only:
+            line = line[:-1]
+
+        anchored = line.startswith("/")
+        if anchored:
+            line = line[1:]
+
+        if line:
+            rules.append(
+                GitIgnoreRule(
+                    pattern=line,
+                    negated=negated,
+                    directory_only=directory_only,
+                    anchored=anchored,
+                )
+            )
+
+    return rules
+```
+
+### Parsing Steps
+
+1. **Read file**: Load `.gitignore` with UTF-8 encoding, ignoring errors
+2. **Strip whitespace**: Remove leading/trailing spaces
+3. **Skip comments**: Ignore lines starting with `#` or empty lines
+4. **Extract negation**: Check for `!` prefix
+5. **Extract directory flag**: Check for `/` suffix
+6. **Extract anchor**: Check for `/` prefix
+7. **Create rule**: Build `GitIgnoreRule` object
+
+## Matching Algorithm
+
+The `_match_rule()` function (docugen/core/scanner.py:64) determines if a path matches a rule:
+
+```python
+def _match_rule(relative_path: str, is_dir: bool, rule: GitIgnoreRule) -> bool:
+    normalized = relative_path.replace("\\", "/")
+
+    if rule.anchored:
+        path_matches = fnmatch.fnmatch(normalized, rule.pattern)
+        subtree_matches = normalized.startswith(rule.pattern + "/")
+    elif "/" in rule.pattern:
+        path_matches = fnmatch.fnmatch(normalized, rule.pattern)
+        subtree_matches = normalized.startswith(rule.pattern + "/")
+    else:
+        parts = normalized.split("/")
+        path_matches = any(fnmatch.fnmatch(part, rule.pattern) for part in parts)
+        subtree_matches = any(part == rule.pattern for part in parts)
+
+    matched = path_matches or subtree_matches
+
+    if rule.directory_only:
+        return matched and is_dir
+
+    return matched
+```
+
+### Matching Logic
+
+<Steps>
+  <Step title="Normalize Path">
+    Convert backslashes to forward slashes for cross-platform compatibility
+  </Step>
+  
+  <Step title="Anchored Patterns">
+    If pattern starts with `/`, match from repository root:
+    - `/tests` matches `tests/` but not `src/tests/`
+  </Step>
+  
+  <Step title="Path-Based Patterns">
+    If pattern contains `/`, match full path:
+    - `docs/*.py` matches `docs/config.py` but not `docs/api/client.py`
+  </Step>
+  
+  <Step title="Name-Based Patterns">
+    If pattern has no `/`, match any path component:
+    - `*.pyc` matches `app.pyc` and `src/utils/cache.pyc`
+  </Step>
+  
+  <Step title="Directory Check">
+    If pattern ends with `/`, only match directories
+  </Step>
+</Steps>
+
+## Ignore Decision Algorithm
+
+The `_is_ignored()` function (docugen/core/scanner.py:86) applies rules in order:
+
+```python
+def _is_ignored(relative_path: str, is_dir: bool, rules: list[GitIgnoreRule]) -> bool:
+    ignored = False
+    for rule in rules:
+        if _match_rule(relative_path, is_dir, rule):
+            ignored = not rule.negated
+    return ignored
+```
+
+<Note>
+  Rules are processed sequentially. **Later rules override earlier rules**, matching Git's behavior.
+</Note>
+
+### Example Rule Processing
+
+```gitignore
+*.log          # Ignore all .log files
+!important.log # Re-include important.log
+logs/          # Ignore logs directory
+!logs/keep/    # Re-include logs/keep directory
+```
+
+For `important.log`:
+1. First rule matches → `ignored = True`
+2. Second rule matches → `ignored = False` (negated)
+3. Final result: **not ignored**
+
+## Pattern Examples
+
+### Basic Patterns
+
+<CodeGroup>
+```gitignore Example .gitignore
+# Ignore all Python bytecode
+*.pyc
+__pycache__/
+
+# Ignore environment files
+.env
+.env.local
+
+# Ignore build outputs
+/dist/
+/build/
+*.egg-info/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+
+# Ignore test outputs
+.pytest_cache/
+.coverage
+htmlcov/
+
+# But keep example configs
+!config/example.env
+```
+</CodeGroup>
+
+### Advanced Patterns
+
+| Pattern | Matches | Does Not Match |
+|---------|---------|----------------|
+| `*.log` | `app.log`, `src/debug.log` | `logs.txt` |
+| `/logs/` | `logs/` (root only) | `src/logs/` |
+| `logs/` | `logs/`, `src/logs/` | `logs.txt` |
+| `doc/*.md` | `doc/readme.md` | `doc/api/spec.md` |
+| `doc/**/*.md` | All `.md` in `doc/` subtree | `.md` outside `doc/` |
+| `!*.py` | Re-includes all `.py` files | - |
+
+## Custom Ignored Directories
+
+You cannot override `DEFAULT_IGNORED_DIRS` through `.gitignore`. To include a default-ignored directory, you must modify the source:
+
+```python
+from docugen.core.scanner import scan_python_files, DEFAULT_IGNORED_DIRS
+
+# Remove a default exclusion
+DEFAULT_IGNORED_DIRS.discard(".venv")
+
+# Scan with modified defaults
+files = scan_python_files("/path/to/project")
+```
+
+<Warning>
+  Modifying `DEFAULT_IGNORED_DIRS` affects the global state. Do this early in your application.
+</Warning>
+
+## Scanning Process
+
+The `scan_python_files()` function (docugen/core/scanner.py:94) orchestrates scanning:
+
+```python
+def scan_python_files(root_path: str | Path) -> list[Path]:
+    root = Path(root_path).expanduser().resolve()
+
+    if not root.exists():
+        raise FileNotFoundError(f"Path does not exist: {root}")
+
+    if root.is_file():
+        return [root] if root.suffix == ".py" else []
+
+    rules = _load_gitignore_rules(root)
+    discovered: list[Path] = []
+
+    for current_dir, dirnames, filenames in os.walk(root, topdown=True):
+        current = Path(current_dir)
+
+        # Filter directories
+        filtered_dirs: list[str] = []
+        for dirname in dirnames:
+            if dirname in DEFAULT_IGNORED_DIRS:
+                continue
+
+            directory_path = current / dirname
+            relative_dir = directory_path.relative_to(root).as_posix()
+            if _is_ignored(relative_dir, is_dir=True, rules=rules):
+                continue
+
+            filtered_dirs.append(dirname)
+
+        dirnames[:] = filtered_dirs  # Modify in-place to prune walk
+
+        # Filter files
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+
+            file_path = current / filename
+            relative_file = file_path.relative_to(root).as_posix()
+            if _is_ignored(relative_file, is_dir=False, rules=rules):
+                continue
+
+            discovered.append(file_path.resolve())
+
+    return sorted(discovered)
+```
+
+### Optimization: Tree Pruning
+
+<Tip>
+  By modifying `dirnames[:]` in-place, `os.walk()` skips ignored directories entirely, improving performance on large repositories.
+</Tip>
+
+## Testing Gitignore Rules
+
+To debug which files are being ignored:
+
+```python
+from docugen.core.scanner import scan_python_files
+from pathlib import Path
+
+root = Path("/path/to/project")
+found = scan_python_files(root)
+
+print(f"Found {len(found)} Python files:")
+for file in found:
+    print(f"  {file.relative_to(root)}")
+```
+
+### Manual Rule Testing
+
+```python
+from docugen.core.scanner import _load_gitignore_rules, _is_ignored
+from pathlib import Path
+
+root = Path("/path/to/project")
+rules = _load_gitignore_rules(root)
+
+test_paths = [
+    ("tests/test_api.py", False),
+    ("build", True),
+    (".venv/lib/site.py", False),
+]
+
+for path, is_dir in test_paths:
+    ignored = _is_ignored(path, is_dir, rules)
+    status = "IGNORED" if ignored else "INCLUDED"
+    print(f"{status}: {path}")
+```
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Ignore all test files">
+    ```gitignore
+    test_*.py
+    *_test.py
+    tests/
+    ```
+  </Accordion>
+
+  <Accordion title="Ignore generated code">
+    ```gitignore
+    *_pb2.py
+    *_pb2_grpc.py
+    generated/
+    ```
+  </Accordion>
+
+  <Accordion title="Ignore migrations but keep init">
+    ```gitignore
+    migrations/
+    !migrations/__init__.py
+    !migrations/versions/
+    ```
+  </Accordion>
+
+  <Accordion title="Ignore everything except specific files">
+    ```gitignore
+    /*
+    !src/
+    !tests/
+    !README.md
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Edge Cases
+
+### Empty .gitignore
+
+If `.gitignore` is empty or missing, only `DEFAULT_IGNORED_DIRS` apply.
+
+### Unicode and Encoding
+
+The parser uses `errors="ignore"` when reading `.gitignore`, so invalid UTF-8 sequences are skipped.
+
+### Symbolic Links
+
+`os.walk()` follows symbolic links by default. Circular symlinks may cause infinite loops.
+
+<Warning>
+  DocuGen does not detect circular symlinks. Ensure your project structure avoids them.
+</Warning>

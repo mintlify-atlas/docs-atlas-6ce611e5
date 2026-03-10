@@ -1,0 +1,377 @@
+---
+title: "AI-Powered Generation"
+description: "How DocuGen AI uses Google Gemini to transform code metadata into comprehensive documentation"
+---
+
+## Introduction
+
+After extracting and normalizing code metadata, DocuGen AI leverages **Google's Gemini API** to generate human-readable documentation. The AI acts as a Technical Writer, interpreting metadata and creating clear, professional documentation.
+
+<Info>
+The AI generation layer is implemented in `docugen/api/gemini_client.py` using the `google-genai` Python SDK.
+</Info>
+
+---
+
+## The GeminiClient Class
+
+The `GeminiClient` class (`gemini_client.py:23`) encapsulates all AI interactions:
+
+```python
+class GeminiClient:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = DEFAULT_MODEL,
+        system_prompt: str = SYSTEM_PROMPT,
+        client: Any | None = None,
+    ) -> None:
+        if not api_key or not api_key.strip():
+            raise ValueError("GEMINI_API_KEY is required.")
+        
+        self.model = model
+        self.system_prompt = system_prompt
+        self.client = client or self._build_client(api_key.strip())
+```
+
+### Configuration
+
+- **API Key**: Required authentication for Gemini API
+- **Model**: Defaults to `gemini-3.1-flash-lite-preview` (`gemini_client.py:11`)
+- **System Prompt**: Defines the AI's role and behavior
+- **Client**: Auto-initialized `genai.Client` instance
+
+<Tip>
+You can inject a custom client for testing or use a different Gemini model by passing the `model` parameter.
+</Tip>
+
+---
+
+## The System Prompt
+
+The system prompt (`gemini_client.py:12-20`) is critical—it defines how the AI behaves:
+
+```python
+SYSTEM_PROMPT = (
+    "Actua como un Technical Writer Senior experto en documentacion de software. "
+    "Tu tarea es analizar los metadatos de codigo (clases, funciones, docstrings) que te proporcionare.\n"
+    "1. Genera una descripcion tecnica de alto nivel pero facil de entender.\n"
+    "2. Crea ejemplos de uso (Usage Examples) basados en las firmas de las funciones.\n"
+    "3. Manten un tono profesional, conciso y utiliza formato Markdown limpio.\n"
+    "4. Si el codigo carece de docstrings, infiere la utilidad basandote en el nombre de las variables y la logica.\n"
+    "5. Responde unicamente con el contenido del Markdown, sin introducciones ni despedidas."
+)
+```
+
+### What the Prompt Achieves
+
+| Instruction | Purpose |
+|-------------|----------|
+| **"Technical Writer Senior"** | Sets expertise level and writing style |
+| **"Genera descripción técnica"** | Ensures high-level overview is included |
+| **"Crea ejemplos de uso"** | Forces the AI to generate usage examples |
+| **"Tono profesional, conciso"** | Maintains consistency and brevity |
+| **"Infiere la utilidad"** | Handles codebases without docstrings |
+| **"Markdown limpio"** | Ensures output is properly formatted |
+| **"Sin introducciones ni despedidas"** | Removes conversational fluff |
+
+<Note>
+The system prompt is in Spanish in this implementation. You can customize it by passing a different `system_prompt` parameter during initialization.
+</Note>
+
+---
+
+## Metadata Preparation
+
+Before sending data to the AI, the `_build_content()` method (`gemini_client.py:44-56`) formats the metadata:
+
+```python
+def _build_content(self, project_metadata: dict[str, Any], user_prompt: str | None = None) -> str:
+    metadata_json = json.dumps(project_metadata, ensure_ascii=False, indent=2)
+    sections = [
+        "Project metadata (JSON):",
+        "```json",
+        metadata_json,
+        "```",
+    ]
+    
+    if user_prompt and user_prompt.strip():
+        sections.extend(["", f"Additional instruction: {user_prompt.strip()}"])
+    
+    return "\n".join(sections)
+```
+
+### What Gets Sent to Gemini
+
+1. **JSON-formatted metadata** from the normalization phase:
+   ```json
+   {
+     "summary": {
+       "file_count": 5,
+       "class_count": 3,
+       "function_count": 12,
+       "method_count": 8
+     },
+     "files": [
+       {
+         "path": "docugen/core/parser.py",
+         "classes": [...],
+         "functions": [...],
+         "metrics": {...}
+       }
+     ]
+   }
+   ```
+
+2. **Optional user prompt** for custom instructions:
+   ```
+   Additional instruction: Focus on the AST parsing logic.
+   ```
+
+<Info>
+The metadata is serialized with `ensure_ascii=False` to preserve Unicode characters (useful for non-English codebases) and `indent=2` for readability.
+</Info>
+
+---
+
+## Making the API Call
+
+The `generate_markdown()` method (`gemini_client.py:77-89`) orchestrates the entire generation process:
+
+```python
+def generate_markdown(self, project_metadata: dict[str, Any], user_prompt: str | None = None) -> str:
+    content = self._build_content(project_metadata, user_prompt=user_prompt)
+    
+    try:
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=content,
+            config={"system_instruction": self.system_prompt},
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Gemini API call failed: {exc}") from exc
+    
+    return self._extract_text(response)
+```
+
+### Request Configuration
+
+- **model**: The Gemini model ID (e.g., `gemini-3.1-flash-lite-preview`)
+- **contents**: The formatted metadata + user prompt
+- **config.system_instruction**: The Technical Writer system prompt
+
+<Tip>
+The Gemini Flash Lite model is optimized for speed and cost-efficiency while maintaining high-quality output for documentation tasks.
+</Tip>
+
+---
+
+## Response Extraction
+
+Gemini API responses can vary in structure. The `_extract_text()` method (`gemini_client.py:58-75`) handles multiple response formats:
+
+```python
+@staticmethod
+def _extract_text(response: Any) -> str:
+    # Try direct text attribute
+    direct_text = getattr(response, "text", None)
+    if isinstance(direct_text, str) and direct_text.strip():
+        return direct_text.strip()
+    
+    # Fallback: iterate through candidates
+    for candidate in getattr(response, "candidates", []) or []:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) if content is not None else None
+        if not parts:
+            continue
+        
+        text_parts = [getattr(part, "text", "") for part in parts if getattr(part, "text", None)]
+        joined = "".join(text_parts).strip()
+        if joined:
+            return joined
+    
+    raise RuntimeError("Gemini response did not include text content.")
+```
+
+### Why This Complexity?
+
+1. **Direct access**: Some models return `response.text` directly
+2. **Structured responses**: Others return `response.candidates[0].content.parts[0].text`
+3. **Multi-part responses**: Text may be split across multiple parts
+
+<Note>
+The method uses `getattr()` with fallbacks to avoid AttributeError exceptions when the response structure differs from expectations.
+</Note>
+
+---
+
+## Error Handling
+
+### API Call Failures
+
+All exceptions during the API call are caught and wrapped with context (`gemini_client.py:86-87`):
+
+```python
+except Exception as exc:
+    raise RuntimeError(f"Gemini API call failed: {exc}") from exc
+```
+
+**Common errors:**
+- Invalid API key
+- Network timeouts
+- Rate limiting
+- Model unavailability
+
+### Empty Responses
+
+If the response doesn't contain text, an error is raised (`gemini_client.py:75`):
+
+```python
+raise RuntimeError("Gemini response did not include text content.")
+```
+
+<Tip>
+When debugging API issues, check that your API key is valid and that you haven't exceeded Gemini's rate limits.
+</Tip>
+
+---
+
+## Client Initialization
+
+The `_build_client()` static method (`gemini_client.py:38-42`) handles SDK initialization:
+
+```python
+@staticmethod
+def _build_client(api_key: str) -> Any:
+    if genai is None:
+        raise RuntimeError("google-genai is not installed. Install dependencies first.")
+    return genai.Client(api_key=api_key)
+```
+
+### Dependency Check
+
+The module attempts to import `google.genai` at the top (`gemini_client.py:6-9`):
+
+```python
+try:
+    from google import genai
+except ImportError:
+    genai = None  # type: ignore[assignment]
+```
+
+This allows the module to be imported even if `google-genai` isn't installed (useful for testing or alternative backends).
+
+---
+
+## Integration with Templates
+
+After generation, the AI-produced Markdown is combined with project metadata using the `TemplateEngine` (`templates/engine.py:27`):
+
+```python
+def render_readme(ai_content: str, project_name: str, summary: dict[str, Any] | None = None) -> str:
+    engine = TemplateEngine()
+    return engine.render(
+        DEFAULT_TEMPLATE,
+        {
+            "project_name": project_name,
+            "ai_content": ai_content.strip(),
+            "summary": summary or {},
+        },
+    )
+```
+
+This creates the final documentation file with:
+- **Project name** as the title
+- **AI-generated content** as the main body
+- **Summary statistics** (file count, class count, etc.)
+
+---
+
+## Example Workflow
+
+Here's how the pieces fit together:
+
+```python
+# 1. Initialize client
+client = GeminiClient(api_key="your-key")
+
+# 2. Prepare metadata (from previous phases)
+metadata = prepare_for_ai(parsed_files)
+
+# 3. Generate documentation
+ai_markdown = client.generate_markdown(
+    project_metadata=metadata,
+    user_prompt="Focus on the public API"
+)
+
+# 4. Render final output
+final_docs = render_readme(
+    ai_content=ai_markdown,
+    project_name="MyProject",
+    summary=metadata["summary"]
+)
+```
+
+---
+
+## Customization Options
+
+### Use a Different Model
+
+```python
+client = GeminiClient(
+    api_key="your-key",
+    model="gemini-4.5-pro"  # More powerful model
+)
+```
+
+### Custom System Prompt
+
+```python
+custom_prompt = """
+You are a documentation expert. Generate API reference documentation
+with a focus on code examples and best practices. Use TypeScript-style
+type annotations when possible.
+"""
+
+client = GeminiClient(
+    api_key="your-key",
+    system_prompt=custom_prompt
+)
+```
+
+### Provide User Instructions
+
+```python
+ai_markdown = client.generate_markdown(
+    project_metadata=metadata,
+    user_prompt="Include detailed examples for the GeminiClient class"
+)
+```
+
+<Info>
+User prompts are appended to the metadata, allowing you to guide the AI's focus without changing the system prompt.
+</Info>
+
+---
+
+## Best Practices
+
+1. **API Key Security**: Store API keys in environment variables, never in code
+2. **Error Handling**: Wrap API calls in try/except blocks to handle network issues gracefully
+3. **Rate Limiting**: Implement retry logic with exponential backoff for production use
+4. **Prompt Tuning**: Experiment with system prompts to match your documentation style
+5. **Model Selection**: Use Flash models for speed, Pro models for complex codebases
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="diagram-project" href="/concepts/architecture">
+    See how AI generation fits into the complete pipeline
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/usage/cli-reference">
+    Learn how to use the CLI to generate documentation
+  </Card>
+</CardGroup>

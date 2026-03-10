@@ -1,97 +1,128 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "DocuGen AI"
+description: "AI-powered CLI tool that generates professional technical documentation from Python source code using AST analysis and Google Gemini"
 ---
 
-## Setting up
+<div style={{
+  background: "linear-gradient(135deg, #94cb04 0%, #545454 100%)",
+  padding: "4rem 2rem",
+  borderRadius: "8px",
+  marginBottom: "2rem",
+  textAlign: "center"
+}}>
+  <h1 style={{ color: "#ffffff", fontSize: "3rem", fontWeight: "700", marginBottom: "1rem" }}>
+    DocuGen AI
+  </h1>
+  <p style={{ color: "#ffffff", fontSize: "1.25rem", maxWidth: "800px", margin: "0 auto" }}>
+    Transform your Python codebase into professional documentation in seconds with AI-powered AST analysis
+  </p>
+</div>
 
-Get your documentation site up and running in minutes.
+## What is DocuGen AI?
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+DocuGen AI is a cutting-edge documentation automation tool that leverages Abstract Syntax Tree (AST) analysis and Google Gemini's language models to generate comprehensive, production-ready README files from your Python projects.
 
-## Make it yours
+Instead of manually writing documentation, DocuGen scans your codebase, extracts structural metadata (classes, functions, methods, type annotations), and uses AI to generate clear, technical documentation that evolves with your code.
 
-Design a docs site that looks great and empowers your users.
+## Key Features
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Advanced AST Analysis" icon="sitemap" iconType="duotone">
+    Deep analysis of Python source code structure, extracting classes, functions, methods, and type signatures
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="AI-Powered Generation" icon="sparkles" iconType="duotone">
+    Google Gemini integration generates clear, professional documentation from code metadata
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Smart File Scanning" icon="folder-tree" iconType="duotone">
+    Respects .gitignore rules and automatically excludes common directories like venv, __pycache__
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Flexible Configuration" icon="gear" iconType="duotone">
+    Configure via CLI arguments, TOML files, or environment variables for maximum flexibility
   </Card>
-</Columns>
+  <Card title="Template Engine" icon="file-code" iconType="duotone">
+    Jinja2-based templating system for customizing documentation output format
+  </Card>
+  <Card title="Professional Output" icon="file-lines" iconType="duotone">
+    Generates clean, structured Markdown documentation following industry standards
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Start
 
-Everything you need to create world-class documentation.
+Get started with DocuGen AI in just a few steps:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={3}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install via pip and set up your API key
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Generate your first documentation in minutes
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="CLI Reference" icon="terminal" href="/usage/cli-reference">
+    Explore all available commands and options
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## How It Works
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Steps>
+  <Step title="Scan & Discover">
+    DocuGen scans your Python project, respecting .gitignore rules and identifying all relevant source files
+  </Step>
+  <Step title="Parse & Extract">
+    AST parser analyzes each file to extract classes, functions, methods, parameters, return types, and docstrings
+  </Step>
+  <Step title="Normalize & Process">
+    Metadata is normalized into a clean format optimized for AI comprehension
+  </Step>
+  <Step title="Generate & Render">
+    Google Gemini processes the metadata and generates professional documentation, which is then rendered using Jinja2 templates
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Open Source Projects" icon="code-branch">
+    Maintain professional README files that stay in sync with your codebase, making it easier for contributors to understand your project structure
+  </Accordion>
+  <Accordion title="Internal Documentation" icon="building">
+    Generate technical documentation for internal tools and libraries, ensuring your team has up-to-date reference materials
+  </Accordion>
+  <Accordion title="API Libraries" icon="plug">
+    Document Python packages and libraries with detailed API references extracted directly from your code
+  </Accordion>
+  <Accordion title="Educational Projects" icon="graduation-cap">
+    Create comprehensive documentation for teaching materials and example projects
+  </Accordion>
+</AccordionGroup>
+
+## Why DocuGen AI?
+
+<Note>
+Traditional documentation quickly becomes outdated as code evolves. DocuGen AI solves this by regenerating documentation on-demand, ensuring your docs always reflect the current state of your codebase.
+</Note>
+
+**Benefits:**
+- **Save Time**: Eliminate hours of manual documentation writing
+- **Stay Accurate**: Generated docs reflect actual code structure
+- **Improve Quality**: AI-generated explanations provide clear, professional descriptions
+- **Maintain Consistency**: Standardized format across all your projects
+- **Focus on Code**: Spend more time building features, less time writing docs
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts/architecture">
+    Understand the three-phase pipeline architecture
+  </Card>
+  <Card title="Configuration Guide" icon="sliders" href="/usage/configuration">
+    Learn about all configuration options
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/scanner">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/advanced/troubleshooting">
+    Find solutions to common issues
+  </Card>
+</CardGroup>

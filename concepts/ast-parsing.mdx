@@ -1,0 +1,335 @@
+---
+title: "AST Parsing"
+description: "Deep dive into how DocuGen AI extracts metadata from Python source code"
+---
+
+## Introduction
+
+DocuGen AI uses Python's built-in **Abstract Syntax Tree (AST)** module to extract structured metadata from source code. This approach is more reliable than regex-based parsing because it understands Python's syntax at a deep level.
+
+<Info>
+The AST parser is implemented in `docugen/core/parser.py` and handles classes, functions, type annotations, docstrings, and more.
+</Info>
+
+---
+
+## What is AST Parsing?
+
+An **Abstract Syntax Tree** represents the syntactic structure of source code as a tree. Each node represents a construct in the code (class, function, expression, etc.).
+
+### Example: Function to AST
+
+```python
+def greet(name: str, age: int = 25) -> str:
+    """Generate a greeting message."""
+    return f"Hello {name}, age {age}"
+```
+
+**AST Representation:**
+
+```
+Module
+  └── FunctionDef(name='greet')
+       ├── arguments
+       │    ├── arg(arg='name', annotation=Name(id='str'))
+       │    └── arg(arg='age', annotation=Name(id='int'), default=Constant(25))
+       ├── returns: Name(id='str')
+       └── body
+            └── Return(value=JoinedStr(...))
+```
+
+DocuGen AI traverses this tree to extract:
+- Function name: `greet`
+- Arguments: `name` (str), `age` (int, default=25)
+- Return type: `str`
+- Docstring: "Generate a greeting message."
+
+---
+
+## Core Parsing Function
+
+The main entry point is `parse_file()` in `parser.py:81`:
+
+```python
+def parse_file(file_path: str | Path, root: str | Path | None = None) -> dict[str, Any]:
+    path = Path(file_path).resolve()
+    
+    result: dict[str, Any] = {
+        "path": relative_path,
+        "classes": [],
+        "functions": [],
+        "metrics": {
+            "line_count": 0,
+            "class_count": 0,
+            "method_count": 0,
+            "function_count": 0,
+        },
+        "errors": [],
+    }
+```
+
+### Key Steps
+
+1. **Read Source Code** (`parser.py:17`)
+   ```python
+   def _read_source(path: Path) -> str:
+       return path.read_text(encoding="utf-8", errors="replace")
+   ```
+   <Note>
+   The parser uses `errors="replace"` to handle files with encoding issues gracefully.
+   </Note>
+
+2. **Parse into AST** (`parser.py:114`)
+   ```python
+   tree = ast.parse(source, filename=str(path))
+   ```
+
+3. **Traverse Top-Level Nodes** (`parser.py:123-139`)
+   ```python
+   for node in tree.body:
+       if isinstance(node, ast.ClassDef):
+           # Extract class metadata
+       elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+           # Extract function metadata
+   ```
+
+4. **Calculate Metrics** (`parser.py:143-145`)
+   ```python
+   result["metrics"]["class_count"] = len(classes)
+   result["metrics"]["function_count"] = len(functions)
+   result["metrics"]["method_count"] = sum(len(item["methods"]) for item in classes)
+   ```
+
+---
+
+## Extracted Metadata
+
+### Classes
+
+For each `ast.ClassDef` node, DocuGen extracts (`parser.py:124-136`):
+
+```python
+{
+    "name": node.name,
+    "bases": [_safe_unparse(base) for base in node.bases if _safe_unparse(base)],
+    "docstring": ast.get_docstring(node) or "",
+    "methods": methods,
+}
+```
+
+**Fields:**
+- `name`: Class name (e.g., `GeminiClient`)
+- `bases`: List of base classes (e.g., `["BaseModel", "ABC"]`)
+- `docstring`: The class-level docstring
+- `methods`: List of method metadata (see Functions below)
+
+<Tip>
+Base classes are unparsed back to strings using `ast.unparse()`, which reconstructs the original code from the AST node.
+</Tip>
+
+### Functions and Methods
+
+The `_extract_function()` helper (`parser.py:71-78`) processes both standalone functions and class methods:
+
+```python
+def _extract_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, Any]:
+    return {
+        "name": node.name,
+        "args": _extract_arguments(node),
+        "returns": _safe_unparse(node.returns),
+        "docstring": ast.get_docstring(node) or "",
+        "is_async": isinstance(node, ast.AsyncFunctionDef),
+    }
+```
+
+**Fields:**
+- `name`: Function/method name
+- `args`: Detailed argument list (see below)
+- `returns`: Return type annotation as a string
+- `docstring`: Function/method docstring
+- `is_async`: Boolean indicating if it's an async function
+
+### Arguments
+
+Argument extraction (`parser.py:21-68`) is the most complex part because Python supports multiple argument types:
+
+```python
+def _extract_arguments(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[dict[str, Any]]:
+    args: list[dict[str, Any]] = []
+    signature = node.args
+    
+    # Positional arguments
+    positional = signature.posonlyargs + signature.args
+    defaults = [None] * (len(positional) - len(signature.defaults)) + list(signature.defaults)
+    
+    for argument, default in zip(positional, defaults):
+        args.append({
+            "name": argument.arg,
+            "annotation": _safe_unparse(argument.annotation),
+            "default": _safe_unparse(default),
+            "kind": "positional",
+        })
+```
+
+**Argument Kinds:**
+
+| Kind | Example | Description |
+|------|---------|-------------|
+| `positional` | `name: str` | Regular positional or positional-only args |
+| `var_positional` | `*args` | Variable positional arguments |
+| `keyword_only` | `*, timeout: int = 30` | Arguments after `*` |
+| `var_keyword` | `**kwargs` | Variable keyword arguments |
+
+<Info>
+Each argument includes its name, type annotation, default value, and kind. This granular metadata helps the AI understand function signatures completely.
+</Info>
+
+---
+
+## Safe Unparsing
+
+The `_safe_unparse()` helper (`parser.py:8-14`) converts AST nodes back to strings:
+
+```python
+def _safe_unparse(node: ast.AST | None) -> str:
+    if node is None:
+        return ""
+    try:
+        return ast.unparse(node)
+    except Exception:
+        return ""
+```
+
+**Why is this needed?**
+
+Type annotations and default values are stored as AST nodes. To include them in documentation, we need to convert them back to readable strings:
+
+- `ast.Name(id='str')` → `"str"`
+- `ast.Constant(value=25)` → `"25"`
+- `ast.Call(...)` → `"datetime.now()"`
+
+<Note>
+The `try/except` block ensures that even if unparsing fails (rare edge cases), the parser continues rather than crashing.
+</Note>
+
+---
+
+## Error Handling
+
+The parser gracefully handles errors at multiple levels:
+
+### 1. File Reading Errors (`parser.py:107-109`)
+
+```python
+try:
+    source = _read_source(path)
+except OSError as exc:
+    result["errors"].append(f"Cannot read file: {exc}")
+    return result
+```
+
+### 2. Syntax Errors (`parser.py:115-118`)
+
+```python
+try:
+    tree = ast.parse(source, filename=str(path))
+except SyntaxError as exc:
+    message = f"SyntaxError at line {exc.lineno}, column {exc.offset}: {exc.msg}"
+    result["errors"].append(message)
+    return result
+```
+
+<Tip>
+When a file has syntax errors, the parser records the error details but continues processing other files. This allows documentation generation even for projects with incomplete or broken code.
+</Tip>
+
+---
+
+## Project-Level Parsing
+
+The `parse_project()` function (`parser.py:150-158`) processes multiple files:
+
+```python
+def parse_project(file_paths: list[str | Path], root: str | Path) -> dict[str, dict[str, Any]]:
+    root_path = Path(root).resolve()
+    parsed: dict[str, dict[str, Any]] = {}
+    
+    for file_path in sorted(Path(path).resolve() for path in file_paths):
+        record = parse_file(file_path, root_path)
+        parsed[record["path"]] = record
+    
+    return parsed
+```
+
+**Returns:** A dictionary mapping relative file paths to their parsed metadata.
+
+---
+
+## Example Output
+
+Here's what the parser extracts from a real function in `gemini_client.py:77`:
+
+```json
+{
+  "name": "generate_markdown",
+  "args": [
+    {
+      "name": "self",
+      "annotation": "",
+      "default": "",
+      "kind": "positional"
+    },
+    {
+      "name": "project_metadata",
+      "annotation": "dict[str, Any]",
+      "default": "",
+      "kind": "positional"
+    },
+    {
+      "name": "user_prompt",
+      "annotation": "str | None",
+      "default": "None",
+      "kind": "positional"
+    }
+  ],
+  "returns": "str",
+  "docstring": "",
+  "is_async": false
+}
+```
+
+---
+
+## Metrics Calculation
+
+The parser calculates useful code metrics (`parser.py:96-101`):
+
+```python
+"metrics": {
+    "line_count": 0,       # Total lines in file
+    "class_count": 0,      # Number of classes
+    "method_count": 0,     # Total methods across all classes
+    "function_count": 0,   # Module-level functions
+}
+```
+
+These metrics help users understand the project size and complexity at a glance.
+
+---
+
+## Normalization
+
+After parsing, the raw AST metadata is normalized by `processor.py` for AI consumption. See the [Architecture Overview](/concepts/architecture#phase-2-parsing--normalization) for details.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Generation" icon="sparkles" href="/concepts/ai-generation">
+    Learn how parsed metadata is transformed into documentation
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand the complete three-phase pipeline
+  </Card>
+</CardGroup>

@@ -1,0 +1,608 @@
+---
+title: Usage Examples
+description: Real-world usage examples and common patterns for DocuGen AI
+---
+
+## Quick Start Examples
+
+### Basic Documentation Generation
+
+Generate documentation for the current directory:
+
+```bash
+docugen generate .
+```
+
+This creates `README.md` in the current directory with complete documentation of your Python project.
+
+---
+
+### Generate for Specific Directory
+
+Analyze a specific source directory:
+
+```bash
+docugen generate ./src
+```
+
+```bash
+docugen generate /path/to/project
+```
+
+---
+
+## Output Customization
+
+### Custom Output Filename
+
+<CodeGroup>
+
+```bash Different Filename
+# Generate DOCUMENTATION.md instead of README.md
+docugen generate . --output DOCUMENTATION.md
+```
+
+```bash Short Option
+# Using -o short option
+docugen generate . -o DOCS.md
+```
+
+```bash Subdirectory
+# Place output in a subdirectory
+docugen generate ./src -o docs/API.md
+```
+
+```bash Absolute Path
+# Use absolute path for output
+docugen generate . -o /tmp/project-docs.md
+```
+
+</CodeGroup>
+
+---
+
+## Model Selection
+
+### Using Different Gemini Models
+
+Choose the appropriate model based on your needs:
+
+<CodeGroup>
+
+```bash Fast (Default)
+# Fastest generation with gemini-3.1-flash-lite-preview
+docugen generate .
+```
+
+```bash Balanced
+# Better quality with gemini-pro
+docugen generate . --model gemini-pro
+```
+
+```bash High Quality
+# Best quality (slower) with gemini-ultra
+docugen generate . --model gemini-ultra
+```
+
+</CodeGroup>
+
+<Note>
+  **Model Recommendations:**
+  - Use `gemini-3.1-flash-lite-preview` for quick iterations and large projects
+  - Use `gemini-pro` for production documentation with good balance
+  - Use `gemini-ultra` for critical, public-facing documentation where quality is paramount
+</Note>
+
+---
+
+## Custom AI Instructions
+
+### Using the --prompt Option
+
+Customize the AI's focus with additional instructions:
+
+<CodeGroup>
+
+```bash Security Focus
+# Emphasize security aspects
+docugen generate . \
+  --prompt "Focus on security best practices and potential vulnerabilities"
+```
+
+```bash API Documentation
+# Focus on API usage
+docugen generate ./src \
+  --prompt "Emphasize API endpoints and request/response examples"
+```
+
+```bash Architecture Focus
+# Focus on system design
+docugen generate . \
+  -p "Explain the architecture and design patterns used"
+```
+
+```bash Beginner-Friendly
+# Make it accessible
+docugen generate . \
+  --prompt "Write for beginners with clear explanations and simple examples"
+```
+
+```bash Performance Focus
+# Highlight optimization
+docugen generate ./src \
+  --prompt "Highlight performance optimizations and scalability considerations"
+```
+
+</CodeGroup>
+
+---
+
+## Configuration-Based Workflows
+
+### Using TOML Configuration Files
+
+<Tabs>
+  <Tab title="Project Configuration">
+    **Setup:**
+    
+    Create `.docugen.toml` in your project root:
+    ```toml
+    model = "gemini-pro"
+    output = "docs/README.md"
+    ```
+    
+    **Usage:**
+    ```bash
+    # Automatically uses .docugen.toml settings
+    cd /path/to/project
+    docugen generate .
+    ```
+    
+    **Result:**
+    - Uses `gemini-pro` model
+    - Outputs to `docs/README.md`
+    - Settings are committed with the project
+  </Tab>
+  
+  <Tab title="Personal Defaults">
+    **Setup:**
+    
+    Create `~/.config/docugen/config.toml`:
+    ```toml
+    [docugen]
+    model = "gemini-ultra"
+    output = "DOCUMENTATION.md"
+    ```
+    
+    **Usage:**
+    ```bash
+    # Applies to all projects unless overridden
+    docugen generate /any/project
+    ```
+    
+    **Result:**
+    - Your personal preferences apply globally
+    - Can be overridden by project-specific configs
+  </Tab>
+  
+  <Tab title="Custom Config File">
+    **Setup:**
+    
+    Create `configs/docgen-api.toml`:
+    ```toml
+    model = "gemini-pro"
+    output = "api-documentation.md"
+    ```
+    
+    **Usage:**
+    ```bash
+    # Explicitly specify config file
+    docugen generate ./src --config configs/docgen-api.toml
+    ```
+    
+    **Result:**
+    - Uses specified configuration
+    - Useful for multiple documentation profiles
+  </Tab>
+</Tabs>
+
+---
+
+## Environment-Based Workflows
+
+### Managing API Keys
+
+<CodeGroup>
+
+```bash Direct Export
+# Set API key for current session
+export GEMINI_API_KEY="your-api-key-here"
+docugen generate .
+```
+
+```bash .env File
+# Create .env in project directory
+echo 'GEMINI_API_KEY=your-api-key' > .env
+echo '.env' >> .gitignore
+
+# Run normally (automatically loads .env)
+docugen generate .
+```
+
+```bash Shell Profile
+# Add to ~/.bashrc or ~/.zshrc for permanent setup
+echo 'export GEMINI_API_KEY="your-key"' >> ~/.bashrc
+source ~/.bashrc
+
+# Now available in all sessions
+docugen generate .
+```
+
+```bash Custom .env Location
+# Use a non-standard .env location
+export DOCUGEN_DOTENV="/secure/location/.env"
+docugen generate .
+```
+
+</CodeGroup>
+
+---
+
+## Real-World Use Cases
+
+### Use Case 1: Open Source Project
+
+**Scenario:** Maintain up-to-date README for a public GitHub repository.
+
+**Setup:**
+```bash
+# Project structure
+my-oss-project/
+├── .env.example          # Template for contributors
+├── .docugen.toml         # Shared configuration
+├── .gitignore            # Excludes .env
+└── src/
+```
+
+**.docugen.toml:**
+```toml
+model = "gemini-pro"
+output = "README.md"
+```
+
+**.env.example:**
+```bash
+GEMINI_API_KEY=your-key-here
+```
+
+**Workflow:**
+```bash
+# First time setup
+cp .env.example .env
+# Edit .env with your actual API key
+
+# Generate/update documentation after code changes
+docugen generate ./src --prompt "Emphasize contribution guidelines"
+
+# Commit the updated README (not .env!)
+git add README.md .docugen.toml .env.example
+git commit -m "Update documentation"
+```
+
+---
+
+### Use Case 2: Multi-Module Project
+
+**Scenario:** Generate separate documentation for different modules.
+
+**Project structure:**
+```
+monorepo/
+├── api/
+├── core/
+├── utils/
+└── docs/
+```
+
+**Workflow:**
+```bash
+# Document each module separately
+docugen generate ./api \
+  --output docs/API.md \
+  --prompt "Focus on REST endpoints and authentication"
+
+docugen generate ./core \
+  --output docs/CORE.md \
+  --prompt "Explain core business logic and data models"
+
+docugen generate ./utils \
+  --output docs/UTILS.md \
+  --prompt "Provide utility function reference"
+```
+
+---
+
+### Use Case 3: CI/CD Integration
+
+**Scenario:** Automatically update documentation on each commit.
+
+**GitHub Actions (.github/workflows/docs.yml):**
+```yaml
+name: Update Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install DocuGen
+        run: pip install docugen-ai
+      
+      - name: Generate Documentation
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          docugen generate ./src \
+            --output README.md \
+            --model gemini-pro
+      
+      - name: Commit Documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || \
+            (git commit -m "docs: auto-update README [skip ci]" && git push)
+```
+
+<Warning>
+  Store your `GEMINI_API_KEY` as a GitHub secret, never commit it to the repository.
+</Warning>
+
+---
+
+### Use Case 4: Documentation Profiles
+
+**Scenario:** Generate different documentation styles for different audiences.
+
+**Setup multiple config files:**
+```
+project/
+├── configs/
+│   ├── docs-internal.toml
+│   ├── docs-external.toml
+│   └── docs-api.toml
+└── src/
+```
+
+**configs/docs-internal.toml:**
+```toml
+model = "gemini-pro"
+output = "docs/INTERNAL.md"
+```
+
+**configs/docs-external.toml:**
+```toml
+model = "gemini-ultra"
+output = "README.md"
+```
+
+**configs/docs-api.toml:**
+```toml
+model = "gemini-pro"
+output = "docs/API_REFERENCE.md"
+```
+
+**Workflow:**
+```bash
+# Generate internal documentation
+docugen generate ./src \
+  --config configs/docs-internal.toml \
+  --prompt "Include implementation details and TODOs"
+
+# Generate external documentation
+docugen generate ./src \
+  --config configs/docs-external.toml \
+  --prompt "Focus on features and getting started"
+
+# Generate API reference
+docugen generate ./src \
+  --config configs/docs-api.toml \
+  --prompt "Detailed API reference with all parameters"
+```
+
+---
+
+## Performance Tips
+
+<CardGroup cols={2}>
+  <Card title="Use Flash Model" icon="bolt">
+    For large projects, use `gemini-3.1-flash-lite-preview` (default) for faster generation:
+    ```bash
+    docugen generate ./large-project
+    ```
+  </Card>
+  
+  <Card title="Target Specific Directories" icon="folder">
+    Instead of scanning everything, target specific source directories:
+    ```bash
+    docugen generate ./src
+    # Rather than: docugen generate .
+    ```
+  </Card>
+  
+  <Card title="Use .gitignore" icon="eye-slash">
+    DocuGen respects `.gitignore` patterns, so keep it updated to skip unnecessary files automatically.
+  </Card>
+  
+  <Card title="Cache Results" icon="database">
+    In CI/CD, cache generated docs and only regenerate when Python files change:
+    ```yaml
+    paths:
+      - '**.py'
+    ```
+  </Card>
+</CardGroup>
+
+---
+
+## Common Patterns
+
+### Pattern 1: Quick Iteration
+
+```bash
+# Fast feedback loop during development
+while true; do
+  # Make code changes
+  docugen generate ./src --output /tmp/preview.md
+  # Review /tmp/preview.md
+  read -p "Generate again? (y/n) " -n 1 -r
+  echo
+  [[ $REPLY =~ ^[Yy]$ ]] || break
+done
+```
+
+---
+
+### Pattern 2: Multi-Language Output
+
+```bash
+# English version
+docugen generate ./src \
+  --output README.md \
+  --prompt "Write in English"
+
+# Spanish version
+docugen generate ./src \
+  --output README.es.md \
+  --prompt "Write in Spanish (Español)"
+
+# French version
+docugen generate ./src \
+  --output README.fr.md \
+  --prompt "Write in French (Français)"
+```
+
+---
+
+### Pattern 3: Staged Documentation
+
+```bash
+# Phase 1: Quick draft with fast model
+docugen generate ./src \
+  --output docs/DRAFT.md \
+  --model gemini-3.1-flash-lite-preview
+
+# Review draft...
+
+# Phase 2: Refined version with better model
+docugen generate ./src \
+  --output README.md \
+  --model gemini-ultra \
+  --prompt "Polish language and add comprehensive examples"
+```
+
+---
+
+## Troubleshooting Common Issues
+
+<AccordionGroup>
+  <Accordion title="No Python files found">
+    **Error:** `No Python files found to analyze.`
+    
+    **Solutions:**
+    1. Verify you're pointing to the correct directory:
+       ```bash
+       ls ./path/to/project/*.py
+       ```
+    
+    2. Check that Python files aren't being excluded by `.gitignore`
+    
+    3. Use absolute paths if relative paths aren't working:
+       ```bash
+       docugen generate /full/path/to/project
+       ```
+  </Accordion>
+  
+  <Accordion title="API key errors">
+    **Error:** `Missing GEMINI_API_KEY`
+    
+    **Quick fix:**
+    ```bash
+    # Set for current session
+    export GEMINI_API_KEY="your-key"
+    
+    # Or create .env file
+    echo 'GEMINI_API_KEY=your-key' > .env
+    ```
+    
+    See [Configuration](/usage/configuration) for detailed setup.
+  </Accordion>
+  
+  <Accordion title="Output not in expected location">
+    **Issue:** Generated file is not where you expected.
+    
+    **Check:**
+    1. Relative paths are relative to the project directory, not current directory:
+       ```bash
+       # If you run: docugen generate ./src -o docs/README.md
+       # Output will be: ./src/docs/README.md
+       ```
+    
+    2. Use absolute paths for precise control:
+       ```bash
+       docugen generate ./src -o "$(pwd)/docs/README.md"
+       ```
+  </Accordion>
+  
+  <Accordion title="Generation is slow">
+    **Issue:** Documentation takes a long time to generate.
+    
+    **Solutions:**
+    1. Use the faster model:
+       ```bash
+       docugen generate . --model gemini-3.1-flash-lite-preview
+       ```
+    
+    2. Target only necessary directories:
+       ```bash
+       docugen generate ./src  # Instead of entire project
+       ```
+    
+    3. Check your internet connection (API calls require network)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/usage/cli-reference">
+    Complete reference of all CLI commands and options
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/usage/configuration">
+    Detailed guide to configuration files and environment variables
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/scanner">
+    Dive into the Python API for programmatic usage
+  </Card>
+  
+  <Card title="Core Concepts" icon="book" href="/concepts/architecture">
+    Understand how DocuGen works under the hood
+  </Card>
+</CardGroup>

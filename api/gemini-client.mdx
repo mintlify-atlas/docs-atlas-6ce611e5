@@ -1,0 +1,333 @@
+---
+title: GeminiClient
+description: Client for generating Markdown documentation using Google's Gemini AI models
+---
+
+## Overview
+
+The `GeminiClient` class provides a wrapper around Google's Gemini API to generate technical documentation from project metadata. It uses a specialized system prompt to act as a Technical Writer, converting code metadata into clear, professional Markdown documentation.
+
+**Import Path:** `docugen/api/gemini_client.py:23`
+
+## System Prompt
+
+The `SYSTEM_PROMPT` constant defines the AI's behavior and documentation generation rules:
+
+```python
+SYSTEM_PROMPT = (
+    "Actua como un Technical Writer Senior experto en documentacion de software. "
+    "Tu tarea es analizar los metadatos de codigo (clases, funciones, docstrings) que te proporcionare.\n"
+    "1. Genera una descripcion tecnica de alto nivel pero facil de entender.\n"
+    "2. Crea ejemplos de uso (Usage Examples) basados en las firmas de las funciones.\n"
+    "3. Manten un tono profesional, conciso y utiliza formato Markdown limpio.\n"
+    "4. Si el codigo carece de docstrings, infiere la utilidad basandote en el nombre de las variables y la logica.\n"
+    "5. Responde unicamente con el contenido del Markdown, sin introducciones ni despedidas."
+)
+```
+
+**Purpose:** Instructs the AI to act as a Senior Technical Writer who:
+- Generates high-level technical descriptions
+- Creates usage examples from function signatures
+- Maintains professional, concise tone with clean Markdown
+- Infers functionality from code structure when docstrings are missing
+- Returns only Markdown content without preambles
+
+## Constructor
+
+### `__init__()`
+
+Initialize a new GeminiClient instance with API credentials and configuration.
+
+**Signature:** `docugen/api/gemini_client.py:24`
+
+<ParamField path="api_key" type="str" required>
+  Google Gemini API key for authentication. Must be a non-empty string.
+  
+  **Raises:** `ValueError` if empty or whitespace-only
+</ParamField>
+
+<ParamField path="model" type="str" default="gemini-3.1-flash-lite-preview">
+  The Gemini model to use for generation. Defaults to the fast, lightweight preview model.
+</ParamField>
+
+<ParamField path="system_prompt" type="str" default="SYSTEM_PROMPT">
+  Custom system instruction for the AI. Defaults to the built-in Technical Writer prompt.
+</ParamField>
+
+<ParamField path="client" type="Any | None" default="None">
+  Optional pre-configured Gemini client instance. If `None`, a new client will be created.
+  
+  Useful for dependency injection and testing.
+</ParamField>
+
+**Example:**
+
+```python
+from docugen.api.gemini_client import GeminiClient
+
+# Basic initialization
+client = GeminiClient(api_key="your-api-key-here")
+
+# Custom model and prompt
+client = GeminiClient(
+    api_key="your-api-key-here",
+    model="gemini-2.0-pro",
+    system_prompt="Custom instructions for documentation generation"
+)
+```
+
+## Methods
+
+### `generate_markdown()`
+
+Generate Markdown documentation from project metadata using the Gemini API.
+
+**Signature:** `docugen/api/gemini_client.py:77`
+
+<ParamField path="project_metadata" type="dict[str, Any]" required>
+  Dictionary containing code metadata (classes, functions, docstrings, etc.) to be documented.
+  
+  The metadata is serialized to JSON and sent to the AI for analysis.
+</ParamField>
+
+<ParamField path="user_prompt" type="str | None" default="None">
+  Optional additional instructions to customize the documentation output.
+  
+  Example: "Focus on beginner-friendly explanations" or "Include security considerations"
+</ParamField>
+
+<ResponseField name="return" type="str">
+  Generated Markdown documentation as a string.
+  
+  **Raises:**
+  - `RuntimeError` if the API call fails or response contains no text content
+</ResponseField>
+
+**Example:**
+
+```python
+# Basic usage
+metadata = {
+    "classes": [
+        {
+            "name": "DataProcessor",
+            "methods": ["process", "validate"],
+            "docstring": "Processes and validates data"
+        }
+    ]
+}
+
+markdown = client.generate_markdown(metadata)
+print(markdown)
+
+# With custom instructions
+markdown = client.generate_markdown(
+    project_metadata=metadata,
+    user_prompt="Include performance considerations and best practices"
+)
+```
+
+### `_build_client()` (Static)
+
+Build and configure a Google Gemini API client.
+
+**Signature:** `docugen/api/gemini_client.py:38`
+
+<ParamField path="api_key" type="str" required>
+  Google Gemini API key (trimmed of whitespace)
+</ParamField>
+
+<ResponseField name="return" type="Any">
+  Configured `genai.Client` instance
+  
+  **Raises:**
+  - `RuntimeError` if `google-genai` package is not installed
+</ResponseField>
+
+**Internal Method:** This is called automatically during initialization.
+
+### `_build_content()`
+
+Construct the content payload for the Gemini API request.
+
+**Signature:** `docugen/api/gemini_client.py:44`
+
+<ParamField path="project_metadata" type="dict[str, Any]" required>
+  Project metadata dictionary to serialize as JSON
+</ParamField>
+
+<ParamField path="user_prompt" type="str | None" default="None">
+  Optional user instructions to append after metadata
+</ParamField>
+
+<ResponseField name="return" type="str">
+  Formatted content string containing:
+  - JSON-formatted metadata wrapped in code block
+  - Optional additional instructions (if provided)
+</ResponseField>
+
+**Example Output:**
+
+```
+Project metadata (JSON):
+```json
+{
+  "classes": [...]
+}
+```
+
+Additional instruction: Focus on beginner-friendly explanations
+```
+
+**Internal Method:** This formats the request payload for `generate_markdown()`.
+
+### `_extract_text()` (Static)
+
+Extract text content from a Gemini API response object.
+
+**Signature:** `docugen/api/gemini_client.py:58`
+
+<ParamField path="response" type="Any" required>
+  Gemini API response object to parse
+</ParamField>
+
+<ResponseField name="return" type="str">
+  Extracted text content (trimmed)
+  
+  **Raises:**
+  - `RuntimeError` if no text content found in response
+</ResponseField>
+
+**Extraction Strategy:**
+1. First checks for direct `.text` attribute
+2. Falls back to iterating through `response.candidates[].content.parts[]`
+3. Concatenates all text parts found
+
+**Internal Method:** This handles response parsing for `generate_markdown()`.
+
+## Error Handling
+
+The GeminiClient implements robust error handling:
+
+### Initialization Errors
+
+```python
+try:
+    client = GeminiClient(api_key="")
+except ValueError as e:
+    print(f"Invalid API key: {e}")  # "GEMINI_API_KEY is required."
+
+try:
+    client = GeminiClient(api_key="valid-key")
+except RuntimeError as e:
+    print(f"Setup failed: {e}")  # "google-genai is not installed..."
+```
+
+### Generation Errors
+
+```python
+try:
+    markdown = client.generate_markdown(metadata)
+except RuntimeError as e:
+    print(f"Generation failed: {e}")
+    # Possible causes:
+    # - "Gemini API call failed: [original error]"
+    # - "Gemini response did not include text content."
+```
+
+## Configuration
+
+### Default Model
+
+```python
+DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+```
+
+The default model prioritizes speed and cost-efficiency for documentation generation tasks.
+
+### Custom Configuration
+
+```python
+# Use a more powerful model
+client = GeminiClient(
+    api_key="your-key",
+    model="gemini-2.0-pro"
+)
+
+# Override system prompt for different documentation style
+CUSTOM_PROMPT = "Generate API documentation in OpenAPI 3.0 format..."
+client = GeminiClient(
+    api_key="your-key",
+    system_prompt=CUSTOM_PROMPT
+)
+```
+
+## Complete Usage Example
+
+```python
+from docugen.api.gemini_client import GeminiClient
+import os
+
+# Initialize client with API key from environment
+api_key = os.getenv("GEMINI_API_KEY")
+client = GeminiClient(api_key=api_key)
+
+# Prepare project metadata
+metadata = {
+    "project_name": "MyAPI",
+    "classes": [
+        {
+            "name": "UserManager",
+            "file": "src/users.py",
+            "docstring": "Manages user authentication and profiles",
+            "methods": [
+                {
+                    "name": "create_user",
+                    "signature": "create_user(email: str, password: str) -> User",
+                    "docstring": "Create a new user account"
+                },
+                {
+                    "name": "authenticate",
+                    "signature": "authenticate(email: str, password: str) -> bool",
+                    "docstring": "Verify user credentials"
+                }
+            ]
+        }
+    ],
+    "functions": [
+        {
+            "name": "hash_password",
+            "signature": "hash_password(password: str) -> str",
+            "docstring": "Securely hash a password using bcrypt"
+        }
+    ]
+}
+
+# Generate documentation
+try:
+    documentation = client.generate_markdown(
+        project_metadata=metadata,
+        user_prompt="Include security best practices and error handling examples"
+    )
+    
+    # Save to file
+    with open("docs/api.md", "w") as f:
+        f.write(documentation)
+    
+    print("Documentation generated successfully!")
+    
+except RuntimeError as e:
+    print(f"Error: {e}")
+```
+
+## Dependencies
+
+**Required:**
+- `google-genai` - Google's Gemini API client library
+
+**Install:**
+```bash
+pip install google-genai
+```
+
+The client gracefully handles missing dependencies at import time and raises a clear error at runtime if the package is unavailable.

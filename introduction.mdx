@@ -1,0 +1,90 @@
+---
+title: Introduction
+description: AI-powered documentation generator for Python projects
+---
+
+DocuGen AI is a cutting-edge documentation automation tool designed for developers who want to elevate the quality of their open-source projects. By leveraging the power of Large Language Models (LLMs) through Google's Gemini API, this tool transforms abstract metadata extracted from source code into professional, coherent, production-ready README.md files.
+
+## What is DocuGen AI?
+
+DocuGen AI performs deep static analysis of the Abstract Syntax Tree (AST) of any Python project. This ensures that the generated documentation is not only descriptive but technically and structurally accurate, faithfully reflecting the architecture of classes, functions, and dependencies defined by the developer.
+
+By integrating DocuGen AI into your workflow, you eliminate the tedious manual process of writing engineering documentation, allowing your project's narrative to evolve at the same pace as your codebase. It's the definitive solution for maintaining "living" technical documentation that's always synchronized with your software reality.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Advanced AST Analysis" icon="magnifying-glass">
+    Scans and decomposes Python code structure to understand object hierarchies, method signatures, and parameter types
+  </Card>
+  
+  <Card title="Gemini AI Integration" icon="brain">
+    Uses advanced language models to draft semantic explanations of code capabilities, surpassing traditional auto-completion limitations
+  </Card>
+  
+  <Card title="Intelligent Project Management" icon="folder-tree">
+    Implements a scanning engine compatible with `.gitignore`, avoiding processing of unnecessary or sensitive files
+  </Card>
+  
+  <Card title="Flexible Configuration" icon="sliders">
+    Supports both CLI arguments and TOML/dotenv configuration files for granular control over the model and output parameters
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+DocuGen AI follows a three-phase data pipeline architecture:
+
+<Steps>
+  <Step title="Ingestion & Scanning">
+    Identifies the set of files to process, respecting exclusion rules and focusing on Python business logic (`docugen/core/scanner.py`)
+  </Step>
+  
+  <Step title="Parsing & Normalization">
+    Converts source code into a graph of structured metadata. Data is "normalized" to eliminate syntactic noise, leaving only the structure necessary for the LLM to understand the code's purpose (`docugen/core/parser.py` & `docugen/core/processor.py`)
+  </Step>
+  
+  <Step title="Synthesis & Rendering">
+    The Gemini client receives the normalized context and generates coherent content. Finally, the template engine structures this content into Markdown format following industry standards (`docugen/api/gemini_client.py` & `docugen/templates/engine.py`)
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Open Source Projects">
+    Automatically generate comprehensive README files for your GitHub repositories, making it easier for contributors to understand your project structure and get started quickly.
+  </Accordion>
+  
+  <Accordion title="Internal Libraries">
+    Create consistent documentation for internal Python packages and libraries across your organization, ensuring all teams have access to up-to-date technical references.
+  </Accordion>
+  
+  <Accordion title="API Documentation">
+    Generate detailed documentation for Python APIs by analyzing class structures, method signatures, and docstrings automatically.
+  </Accordion>
+  
+  <Accordion title="Legacy Code Documentation">
+    Quickly document existing codebases that lack proper documentation by analyzing the code structure and generating comprehensive descriptions.
+  </Accordion>
+</AccordionGroup>
+
+## Why DocuGen AI?
+
+- **Time-Saving**: Eliminate hours of manual documentation writing
+- **Consistency**: Maintain uniform documentation style across all projects
+- **Always Up-to-Date**: Regenerate documentation as your code evolves
+- **AI-Powered**: Leverage state-of-the-art language models for intelligent content generation
+- **Extensible**: Decoupled architecture makes it easy to extend for new output formats (Wiki, static sites, formal technical documentation)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get DocuGen AI installed and configured
+  </Card>
+  
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Generate your first documentation in minutes
+  </Card>
+</CardGroup>

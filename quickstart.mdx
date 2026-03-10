@@ -1,80 +1,364 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Generate your first documentation with DocuGen AI in minutes
 ---
 
-## Get started in three steps
+This guide will walk you through generating your first documentation using DocuGen AI. We'll scan a Python project and create a comprehensive README.md file.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before starting, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+- DocuGen AI installed (see [Installation](/installation))
+- A Gemini API key configured in your environment
+- A Python project to document
+
+## Basic Usage
+
+The primary command for generating documentation is `docugen generate`. Let's start with the simplest example.
+
+<Steps>
+  <Step title="Navigate to your project directory">
+    ```bash
+    cd /path/to/your/python/project
+    ```
+  </Step>
+  
+  <Step title="Run the generate command">
+    ```bash
+    docugen generate .
+    ```
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    This command will:
+    - Scan all Python files in the current directory
+    - Parse the code structure using AST analysis
+    - Generate documentation using Gemini AI
+    - Save the output to `README.md`
+  </Step>
+  
+  <Step title="View the generated documentation">
+    ```bash
+    cat README.md
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+    You'll see a professional, AI-generated README with descriptions of your project structure, classes, functions, and usage examples.
+  </Step>
+</Steps>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  DocuGen AI respects `.gitignore` rules and automatically excludes common directories like `venv/`, `__pycache__/`, and `.git/`.
 </Note>
+
+## Command Line Options
+
+The `generate` command supports several options for customization:
+
+### Path Argument
+
+```bash
+docugen generate <path>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the Python project to analyze. Can be an absolute or relative path.
+</ParamField>
+
+**Example:**
+```bash
+docugen generate ./src
+docugen generate /home/user/my-project
+```
+
+### Output Option
+
+```bash
+docugen generate . --output DOCUMENTATION.md
+docugen generate . -o DOCUMENTATION.md
+```
+
+<ParamField path="--output, -o" type="string" default="README.md">
+  Output Markdown file name. Can be a filename or a relative/absolute path.
+</ParamField>
+
+**Example:**
+```bash
+# Save to a different filename
+docugen generate . --output API_DOCS.md
+
+# Save to a specific directory
+docugen generate . --output docs/README.md
+```
+
+### Model Option
+
+```bash
+docugen generate . --model gemini-pro
+```
+
+<ParamField path="--model" type="string" default="gemini-3.1-flash-lite-preview">
+  Gemini model name to use for generation. Different models offer different capabilities and pricing.
+</ParamField>
+
+**Example:**
+```bash
+docugen generate . --model gemini-pro
+docugen generate . --model gemini-ultra
+```
+
+### Prompt Option
+
+```bash
+docugen generate . --prompt "Focus on API security features"
+docugen generate . -p "Include deployment instructions"
+```
+
+<ParamField path="--prompt, -p" type="string">
+  Optional additional instruction to guide the AI in generating specific content or emphasizing certain aspects.
+</ParamField>
+
+**Example:**
+```bash
+docugen generate . --prompt "Emphasize the async capabilities"
+docugen generate . -p "Target audience: beginner developers"
+```
+
+### Config Option
+
+```bash
+docugen generate . --config config.toml
+```
+
+<ParamField path="--config" type="path">
+  Optional TOML configuration file path for advanced settings.
+</ParamField>
+
+## Complete Working Example
+
+Let's generate documentation for a Python package with custom settings:
+
+<CodeGroup>
+  ```bash Basic Example
+  # Generate docs for current directory
+  docugen generate .
+  ```
+  
+  ```bash Custom Output
+  # Generate with custom output filename
+  docugen generate ./my_package --output TECHNICAL_DOCS.md
+  ```
+  
+  ```bash With Custom Prompt
+  # Generate with specific instructions for the AI
+  docugen generate ./src \
+    --output README.md \
+    --prompt "Focus on API endpoints and security features"
+  ```
+  
+  ```bash Full Configuration
+  # Generate with all options
+  docugen generate ./my_package \
+    --output docs/README.md \
+    --model gemini-pro \
+    --prompt "Include performance benchmarks and examples"
+  ```
+</CodeGroup>
+
+## Understanding the Output
+
+When you run the `generate` command, you'll see status messages indicating progress:
+
+```
+⠋ Scanning Python files...
+⠙ Parsing source files with AST...
+⠹ Generating markdown with Gemini...
+✓ Documentation generated at: /path/to/project/README.md
+ℹ Scanned 15 files, 8 classes, 42 functions, 28 methods.
+```
+
+The generated README.md will include:
+
+- **Project Overview**: High-level description of what the project does
+- **Technical Architecture**: Explanation of the code structure
+- **Key Features**: Main capabilities extracted from the code
+- **API Reference**: Documentation of classes, functions, and methods
+- **Usage Examples**: Code snippets showing how to use the project
+
+## Step-by-Step Tutorial
+
+Let's document a sample Python project from scratch:
+
+<Steps>
+  <Step title="Ensure API key is configured">
+    Verify your Gemini API key is set:
+    
+    ```bash
+    echo $GEMINI_API_KEY  # Linux/macOS
+    echo %GEMINI_API_KEY%  # Windows CMD
+    ```
+    
+    If not set, configure it:
+    ```bash
+    export GEMINI_API_KEY="your-api-key-here"
+    ```
+  </Step>
+  
+  <Step title="Navigate to your Python project">
+    ```bash
+    cd ~/projects/my-python-app
+    ```
+  </Step>
+  
+  <Step title="Run DocuGen AI">
+    ```bash
+    docugen generate . --output README.md
+    ```
+    
+    Watch as DocuGen AI:
+    - Scans your Python files
+    - Parses the AST structure
+    - Calls the Gemini API
+    - Generates professional documentation
+  </Step>
+  
+  <Step title="Review the generated documentation">
+    ```bash
+    less README.md
+    # or
+    cat README.md
+    ```
+  </Step>
+  
+  <Step title="Customize if needed">
+    If you want to adjust the output, regenerate with a custom prompt:
+    
+    ```bash
+    docugen generate . \
+      --output README.md \
+      --prompt "Add more detailed usage examples and include installation instructions"
+    ```
+  </Step>
+</Steps>
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Document a specific module">
+    ```bash
+    # Document only the 'api' module
+    docugen generate ./my_project/api --output API_README.md
+    ```
+  </Accordion>
+  
+  <Accordion title="Update existing documentation">
+    ```bash
+    # Regenerate README after code changes
+    docugen generate . --output README.md
+    ```
+    
+    <Warning>
+      This will overwrite the existing README.md file. Consider backing it up first or using version control.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="Generate documentation for multiple projects">
+    ```bash
+    # Use a script to document multiple projects
+    for dir in project1 project2 project3; do
+      docugen generate ./$dir --output $dir/README.md
+    done
+    ```
+  </Accordion>
+  
+  <Accordion title="CI/CD Integration">
+    Add to your GitHub Actions workflow:
+    
+    ```yaml .github/workflows/docs.yml
+    name: Generate Documentation
+    on: [push]
+    jobs:
+      docs:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          - uses: actions/setup-python@v4
+            with:
+              python-version: '3.11'
+          - run: pip install docugen-ai
+          - run: docugen generate . --output README.md
+            env:
+              GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          - run: git add README.md && git commit -m "Update docs" && git push
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: Missing GEMINI_API_KEY">
+    **Problem:** The API key is not configured.
+    
+    **Solution:**
+    ```bash
+    export GEMINI_API_KEY="your-api-key-here"
+    ```
+    
+    Or create a `.env` file with:
+    ```
+    GEMINI_API_KEY=your-api-key-here
+    ```
+  </Accordion>
+  
+  <Accordion title="Error: No Python files found">
+    **Problem:** DocuGen AI couldn't find any Python files in the specified path.
+    
+    **Solution:** 
+    - Verify the path is correct: `ls /path/to/project`
+    - Ensure the directory contains `.py` files
+    - Check that files aren't excluded by `.gitignore`
+  </Accordion>
+  
+  <Accordion title="Error: Project path does not exist">
+    **Problem:** The specified path is invalid.
+    
+    **Solution:**
+    ```bash
+    # Use absolute path
+    docugen generate /home/user/my-project
+    
+    # Or navigate to the directory first
+    cd /home/user/my-project
+    docugen generate .
+    ```
+  </Accordion>
+  
+  <Accordion title="Error: Gemini API call failed">
+    **Problem:** Communication with the Gemini API failed.
+    
+    **Solution:**
+    - Verify your API key is valid
+    - Check your internet connection
+    - Ensure you have API quota remaining
+    - Try a different model: `--model gemini-pro`
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/usage/cli-reference">
+    Explore all available commands and options
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/usage/configuration">
+    Learn about advanced configuration options
+  </Card>
+  
+  <Card title="Core Concepts" icon="book" href="/concepts/architecture">
+    Understand how DocuGen AI works internally
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/scanner">
+    Detailed API documentation for the DocuGen AI library
+  </Card>
+</CardGroup>

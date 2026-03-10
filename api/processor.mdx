@@ -1,0 +1,264 @@
+---
+title: "Processor"
+description: "Normalize and prepare parsed code data for AI consumption"
+---
+
+The `processor` module transforms raw parsed data from the parser into a clean, normalized format suitable for AI model consumption or further analysis.
+
+## prepare_for_ai()
+
+Normalizes parsed file data and computes aggregate statistics across the entire project.
+
+**Location:** `docugen/core/processor.py:57`
+
+```python
+def prepare_for_ai(
+    parsed_files: Mapping[str, Mapping[str, Any]]
+) -> dict[str, Any]
+```
+
+### Parameters
+
+<ParamField path="parsed_files" type="Mapping[str, Mapping[str, Any]]" required>
+  Dictionary mapping file paths to parsed data structures (typically output from `parse_project()`). Each value should be a dictionary with `classes`, `functions`, `metrics`, and `errors` keys.
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="dict[str, Any]">
+  Normalized project data with summary statistics and cleaned file data:
+  
+  ```python
+  {
+      "summary": {
+          "file_count": int,        # Total number of files
+          "class_count": int,       # Total classes across all files
+          "method_count": int,      # Total methods across all classes
+          "function_count": int,    # Total top-level functions
+          "error_count": int        # Total parse errors
+      },
+      "files": [
+          {
+              "path": str,              # File path
+              "classes": list[dict],    # Normalized classes
+              "functions": list[dict],  # Normalized functions
+              "metrics": dict,          # File metrics
+              "errors": list[str]       # Non-empty error messages
+          },
+          # ... more files
+      ]
+  }
+  ```
+</ResponseField>
+
+### Normalization Process
+
+The function performs the following transformations:
+
+1. **Text cleaning**: All string values are stripped of whitespace
+2. **Type safety**: Missing values are replaced with appropriate defaults
+3. **Error filtering**: Only non-empty error messages are included
+4. **Sorting**: Files are sorted alphabetically by path
+5. **Statistics**: Computes aggregate counts across all files
+
+### Behavior
+
+- Processes files in sorted order by path
+- Empty or missing fields are normalized to empty strings, empty lists, or zero
+- Non-integer metrics are coerced to integers
+- All text values are cleaned using `_as_clean_text()`
+
+### Example
+
+```python
+from docugen.core.scanner import scan_python_files
+from docugen.core.parser import parse_project
+from docugen.core.processor import prepare_for_ai
+
+# Complete workflow: scan, parse, and prepare
+files = scan_python_files("~/my-project")
+parsed = parse_project(files, root="~/my-project")
+ai_ready = prepare_for_ai(parsed)
+
+# Access summary statistics
+print(f"Project Summary:")
+print(f"  Files: {ai_ready['summary']['file_count']}")
+print(f"  Classes: {ai_ready['summary']['class_count']}")
+print(f"  Functions: {ai_ready['summary']['function_count']}")
+print(f"  Methods: {ai_ready['summary']['method_count']}")
+print(f"  Errors: {ai_ready['summary']['error_count']}")
+
+# Iterate through normalized files
+for file_data in ai_ready["files"]:
+    print(f"\n{file_data['path']}:")
+    for cls in file_data["classes"]:
+        print(f"  class {cls['name']}:")
+        for method in cls["methods"]:
+            args_str = ", ".join(arg["name"] for arg in method["args"])
+            print(f"    def {method['name']}({args_str})")
+```
+
+---
+
+## Normalization Helper Functions
+
+The module includes several internal helper functions that ensure data consistency:
+
+### _as_clean_text()
+
+**Location:** `docugen/core/processor.py:6`
+
+```python
+def _as_clean_text(value: Any) -> str
+```
+
+Converts any value to a clean string:
+- `None` → empty string
+- Strings → stripped of leading/trailing whitespace
+- Other types → converted to string representation
+
+### _normalize_args()
+
+**Location:** `docugen/core/processor.py:14`
+
+```python
+def _normalize_args(
+    args: list[Mapping[str, Any]] | None
+) -> list[dict[str, str]]
+```
+
+Normalizes function argument lists to ensure all fields are clean strings:
+
+```python
+[
+    {
+        "name": str,          # Parameter name (cleaned)
+        "annotation": str,    # Type annotation (cleaned)
+        "default": str,       # Default value (cleaned)
+        "kind": str          # "positional", "keyword_only", etc.
+    },
+    # ... more args
+]
+```
+
+- Missing fields default to empty strings
+- `kind` defaults to `"positional"` if not specified
+- `None` input returns empty list
+
+### _normalize_function()
+
+**Location:** `docugen/core/processor.py:28`
+
+```python
+def _normalize_function(record: Mapping[str, Any]) -> dict[str, Any]
+```
+
+Normalizes a function or method record:
+
+```python
+{
+    "name": str,              # Function name (cleaned)
+    "args": list[dict],       # Normalized arguments
+    "returns": str,           # Return type annotation (cleaned)
+    "docstring": str,         # Docstring (cleaned)
+    "is_async": bool          # Async function flag
+}
+```
+
+### _normalize_class()
+
+**Location:** `docugen/core/processor.py:38`
+
+```python
+def _normalize_class(record: Mapping[str, Any]) -> dict[str, Any]
+```
+
+Normalizes a class definition:
+
+```python
+{
+    "name": str,              # Class name (cleaned)
+    "bases": list[str],       # Base classes (cleaned)
+    "docstring": str,         # Class docstring (cleaned)
+    "methods": list[dict]     # Normalized methods
+}
+```
+
+### _normalize_metrics()
+
+**Location:** `docugen/core/processor.py:47`
+
+```python
+def _normalize_metrics(
+    metrics: Mapping[str, Any] | None
+) -> dict[str, int]
+```
+
+Normalizes metrics dictionary to ensure all values are integers:
+
+```python
+{
+    "line_count": int,
+    "class_count": int,
+    "method_count": int,
+    "function_count": int
+}
+```
+
+- Missing metrics default to `0`
+- Non-integer values are coerced to integers
+- `None` input is treated as empty dictionary
+
+---
+
+## Usage Patterns
+
+### Full Pipeline
+
+```python
+from docugen.core.scanner import scan_python_files
+from docugen.core.parser import parse_project
+from docugen.core.processor import prepare_for_ai
+
+# 1. Discover Python files
+files = scan_python_files("./project")
+
+# 2. Parse files to extract structure
+parsed = parse_project(files, root="./project")
+
+# 3. Normalize and prepare for AI
+ai_ready = prepare_for_ai(parsed)
+
+# 4. Use the clean data
+for file_data in ai_ready["files"]:
+    if file_data["errors"]:
+        print(f"Errors in {file_data['path']}: {file_data['errors']}")
+```
+
+### Error Checking
+
+```python
+ai_ready = prepare_for_ai(parsed_files)
+
+if ai_ready["summary"]["error_count"] > 0:
+    print("Files with errors:")
+    for file_data in ai_ready["files"]:
+        if file_data["errors"]:
+            print(f"  {file_data['path']}: {file_data['errors']}")
+```
+
+### Statistics Gathering
+
+```python
+ai_ready = prepare_for_ai(parsed_files)
+summary = ai_ready["summary"]
+
+print(f"Project contains:")
+print(f"  {summary['file_count']} files")
+print(f"  {summary['class_count']} classes")
+print(f"  {summary['function_count']} functions")
+print(f"  {summary['method_count']} methods")
+
+avg_lines = sum(f["metrics"]["line_count"] for f in ai_ready["files"]) / summary["file_count"]
+print(f"  {avg_lines:.0f} average lines per file")
+```

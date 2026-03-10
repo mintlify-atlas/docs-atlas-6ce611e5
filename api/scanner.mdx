@@ -1,0 +1,137 @@
+---
+title: "Scanner"
+description: "File discovery and gitignore pattern matching for Python projects"
+---
+
+The `scanner` module provides functionality to discover Python files in a directory tree while respecting `.gitignore` patterns and default exclusions.
+
+## scan_python_files()
+
+Scans a directory tree for Python files while respecting gitignore rules.
+
+**Location:** `docugen/core/scanner.py:94`
+
+```python
+def scan_python_files(root_path: str | Path) -> list[Path]
+```
+
+### Parameters
+
+<ParamField path="root_path" type="str | Path" required>
+  Path to the root directory or single Python file to scan. Accepts both string paths and `Path` objects. Supports `~` for home directory expansion.
+</ParamField>
+
+### Returns
+
+<ResponseField name="files" type="list[Path]">
+  Sorted list of absolute `Path` objects for all discovered Python files. Returns empty list if no `.py` files are found.
+</ResponseField>
+
+### Behavior
+
+- **Single file mode**: If `root_path` points to a file, returns it only if it has `.py` extension
+- **Directory mode**: Recursively walks the directory tree and discovers all `.py` files
+- **Automatic filtering**: Excludes directories in `DEFAULT_IGNORED_DIRS` and patterns from `.gitignore`
+- **Path resolution**: Expands `~` and resolves to absolute paths
+
+### Raises
+
+- `FileNotFoundError`: If the specified path does not exist
+
+### Example
+
+```python
+from docugen.core.scanner import scan_python_files
+
+# Scan entire project
+files = scan_python_files("~/my-project")
+print(f"Found {len(files)} Python files")
+
+# Scan single file
+files = scan_python_files("script.py")
+if files:
+    print(f"File is valid: {files[0]}")
+```
+
+---
+
+## GitIgnoreRule
+
+Represents a parsed rule from a `.gitignore` file.
+
+**Location:** `docugen/core/scanner.py:20`
+
+```python
+@dataclass(frozen=True)
+class GitIgnoreRule:
+    pattern: str
+    negated: bool
+    directory_only: bool
+    anchored: bool
+```
+
+### Attributes
+
+<ParamField path="pattern" type="str">
+  The gitignore pattern without special prefix/suffix characters (e.g., `"*.pyc"`, `"build"`, `"docs/temp"`)
+</ParamField>
+
+<ParamField path="negated" type="bool">
+  `True` if the rule starts with `!`, meaning it negates (un-ignores) matching paths
+</ParamField>
+
+<ParamField path="directory_only" type="bool">
+  `True` if the rule ends with `/`, meaning it only matches directories
+</ParamField>
+
+<ParamField path="anchored" type="bool">
+  `True` if the rule starts with `/`, meaning the pattern is relative to the repository root
+</ParamField>
+
+### Usage
+
+This class is immutable (frozen dataclass) and primarily used internally by the scanner to evaluate whether paths should be ignored.
+
+### Example
+
+```python
+from docugen.core.scanner import GitIgnoreRule
+
+# Examples of how gitignore patterns are parsed
+rule1 = GitIgnoreRule(pattern="*.pyc", negated=False, directory_only=False, anchored=False)
+rule2 = GitIgnoreRule(pattern="build", negated=False, directory_only=True, anchored=False)
+rule3 = GitIgnoreRule(pattern="!important.log", negated=True, directory_only=False, anchored=False)
+```
+
+---
+
+## Default Ignored Directories
+
+**Location:** `docugen/core/scanner.py:8`
+
+The scanner automatically excludes these directories regardless of `.gitignore` rules:
+
+```python
+DEFAULT_IGNORED_DIRS = {
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".pytest_cache",
+    "build",
+    "dist",
+}
+```
+
+These directories are commonly used for Python tooling and build artifacts and are excluded for performance and relevance.
+
+---
+
+## Helper Functions
+
+The module includes internal helper functions that are not part of the public API:
+
+- `_load_gitignore_rules(root: Path) -> list[GitIgnoreRule]` - Parses `.gitignore` file (scanner.py:28)
+- `_match_rule(relative_path: str, is_dir: bool, rule: GitIgnoreRule) -> bool` - Tests if a path matches a rule (scanner.py:64)
+- `_is_ignored(relative_path: str, is_dir: bool, rules: list[GitIgnoreRule]) -> bool` - Determines if a path should be ignored (scanner.py:86)

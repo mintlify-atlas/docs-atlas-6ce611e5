@@ -1,0 +1,172 @@
+---
+title: "Template Engine"
+description: "Jinja2-based template rendering system for generating documentation files"
+---
+
+## Overview
+
+The template engine module provides a flexible Jinja2-based rendering system for generating README files and other documentation. It supports custom template directories and provides a convenient helper function for README generation.
+
+**Source:** `docugen/templates/engine.py`
+
+---
+
+## TemplateEngine
+
+```python
+class TemplateEngine:
+    def __init__(
+        self,
+        template_dir: str | Path | None = None
+    ) -> None
+```
+
+Core template rendering engine using Jinja2.
+
+### Parameters
+
+<ParamField path="template_dir" type="str | Path | None" default="None">
+  Custom directory containing template files. If `None`, uses the built-in templates directory (`docugen/templates/`).
+</ParamField>
+
+### Attributes
+
+<ResponseField name="environment" type="jinja2.Environment">
+  Configured Jinja2 environment with:
+  - `autoescape=False` - No automatic HTML escaping
+  - `trim_blocks=True` - Remove first newline after block
+  - `lstrip_blocks=True` - Strip leading whitespace from blocks
+</ResponseField>
+
+### Methods
+
+#### render()
+
+```python
+def render(
+    self,
+    template_name: str,
+    context: dict[str, Any]
+) -> str
+```
+
+Render a template with the given context variables.
+
+<ParamField path="template_name" type="str" required>
+  Name of the template file to render (e.g., `"default_readme.md.j2"`).
+</ParamField>
+
+<ParamField path="context" type="dict[str, Any]" required>
+  Dictionary of variables to pass to the template.
+</ParamField>
+
+<ResponseField name="return" type="str">
+  Rendered template content with trailing newline.
+</ResponseField>
+
+### Example
+
+```python
+from docugen.templates.engine import TemplateEngine
+from pathlib import Path
+
+# Use default templates
+engine = TemplateEngine()
+readme = engine.render("default_readme.md.j2", {
+    "project_name": "MyProject",
+    "ai_content": "Generated documentation...",
+    "summary": {"files": 42, "lines": 1337}
+})
+
+# Use custom template directory
+engine = TemplateEngine(template_dir="./custom_templates")
+output = engine.render("my_template.j2", {"version": "1.0.0"})
+```
+
+---
+
+## render_readme()
+
+```python
+def render_readme(
+    ai_content: str,
+    project_name: str,
+    summary: dict[str, Any] | None = None
+) -> str
+```
+
+Convenience function to render a README using the default template.
+
+This function creates a `TemplateEngine` instance and renders the `default_readme.md.j2` template with standardized context variables.
+
+### Parameters
+
+<ParamField path="ai_content" type="str" required>
+  AI-generated documentation content. Automatically stripped of leading/trailing whitespace.
+</ParamField>
+
+<ParamField path="project_name" type="str" required>
+  Name of the project being documented.
+</ParamField>
+
+<ParamField path="summary" type="dict[str, Any] | None" default="None">
+  Optional metadata dictionary (e.g., file counts, statistics). Defaults to empty dict if not provided.
+</ParamField>
+
+### Returns
+
+<ResponseField name="return" type="str">
+  Rendered README content with trailing newline.
+</ResponseField>
+
+### Example
+
+```python
+from docugen.templates.engine import render_readme
+
+# Basic usage
+readme = render_readme(
+    ai_content="This is a Python package for...",
+    project_name="docugen-ai"
+)
+
+# With summary metadata
+readme = render_readme(
+    ai_content="Comprehensive documentation...",
+    project_name="my-app",
+    summary={
+        "total_files": 50,
+        "total_lines": 2500,
+        "languages": ["Python", "TypeScript"]
+    }
+)
+
+print(readme)
+```
+
+---
+
+## Constants
+
+<ResponseField name="DEFAULT_TEMPLATE" type="str" default="default_readme.md.j2">
+  Default template filename used by `render_readme()`.
+</ResponseField>
+
+---
+
+## Template Context
+
+When using `render_readme()`, the following variables are available in templates:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `project_name` | `str` | Project name |
+| `ai_content` | `str` | Generated documentation (trimmed) |
+| `summary` | `dict` | Metadata dictionary |
+
+---
+
+## Related
+
+- [Configuration Manager](/api/config-manager) - Runtime configuration
+- [CLI Reference](/api/cli) - Command-line interface

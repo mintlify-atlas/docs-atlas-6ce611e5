@@ -1,0 +1,244 @@
+---
+title: "Parser"
+description: "AST-based Python code parsing for extracting functions, classes, and metadata"
+---
+
+The `parser` module uses Python's `ast` module to parse Python source files and extract structured information about classes, functions, arguments, and docstrings.
+
+## parse_file()
+
+Parses a single Python file and extracts all classes, functions, and metrics.
+
+**Location:** `docugen/core/parser.py:81`
+
+```python
+def parse_file(
+    file_path: str | Path,
+    root: str | Path | None = None
+) -> dict[str, Any]
+```
+
+### Parameters
+
+<ParamField path="file_path" type="str | Path" required>
+  Absolute or relative path to the Python file to parse. Accepts both string paths and `Path` objects.
+</ParamField>
+
+<ParamField path="root" type="str | Path | None" default="None">
+  Root directory for computing relative paths. If `None`, only the filename is used. If provided, the result will contain the path relative to this root.
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="dict[str, Any]">
+  Dictionary containing parsed file information with the following structure:
+  
+  ```python
+  {
+      "path": str,              # Relative path from root (or filename)
+      "classes": list[dict],    # List of class definitions
+      "functions": list[dict],  # List of top-level functions
+      "metrics": {
+          "line_count": int,
+          "class_count": int,
+          "method_count": int,
+          "function_count": int
+      },
+      "errors": list[str]      # Parse errors (e.g., syntax errors)
+  }
+  ```
+</ResponseField>
+
+### Class Structure
+
+Each class in the `classes` list has:
+
+```python
+{
+    "name": str,              # Class name
+    "bases": list[str],       # Base classes (unparsed)
+    "docstring": str,         # Class docstring or empty string
+    "methods": list[dict]     # List of method definitions
+}
+```
+
+### Function/Method Structure
+
+Each function in `functions` or class `methods` has:
+
+```python
+{
+    "name": str,              # Function name
+    "args": list[dict],       # Argument definitions
+    "returns": str,           # Return type annotation (unparsed)
+    "docstring": str,         # Function docstring or empty string
+    "is_async": bool          # True if async def
+}
+```
+
+### Argument Structure
+
+Each argument in `args` has:
+
+```python
+{
+    "name": str,              # Parameter name
+    "annotation": str,        # Type annotation (unparsed)
+    "default": str,           # Default value (unparsed)
+    "kind": str              # "positional", "keyword_only", "var_positional", "var_keyword"
+}
+```
+
+### Error Handling
+
+- **File read errors**: Returns result with error message in `errors` list
+- **Syntax errors**: Returns result with detailed error location in `errors` list
+- **UTF-8 decoding errors**: Uses `errors="replace"` to handle invalid UTF-8
+
+### Example
+
+```python
+from docugen.core.parser import parse_file
+
+# Parse a file
+result = parse_file("src/mymodule.py", root="src")
+
+print(f"Path: {result['path']}")
+print(f"Classes: {result['metrics']['class_count']}")
+print(f"Functions: {result['metrics']['function_count']}")
+
+# Iterate through functions
+for func in result["functions"]:
+    print(f"Function: {func['name']}")
+    print(f"  Args: {[arg['name'] for arg in func['args']]}")
+    print(f"  Returns: {func['returns']}")
+    if func["docstring"]:
+        print(f"  Docstring: {func['docstring'][:50]}...")
+```
+
+---
+
+## parse_project()
+
+Parses multiple Python files and returns a mapping of relative paths to parsed data.
+
+**Location:** `docugen/core/parser.py:150`
+
+```python
+def parse_project(
+    file_paths: list[str | Path],
+    root: str | Path
+) -> dict[str, dict[str, Any]]
+```
+
+### Parameters
+
+<ParamField path="file_paths" type="list[str | Path]" required>
+  List of Python file paths to parse. Can be absolute or relative paths.
+</ParamField>
+
+<ParamField path="root" type="str | Path" required>
+  Root directory for computing relative paths. All files will have paths computed relative to this root.
+</ParamField>
+
+### Returns
+
+<ResponseField name="parsed" type="dict[str, dict[str, Any]]">
+  Dictionary mapping relative file paths to their parsed data (same structure as `parse_file()` returns). Keys are relative POSIX-style paths (using `/` separator).
+</ResponseField>
+
+### Behavior
+
+- Files are processed in sorted order by their absolute paths
+- Each file is parsed using `parse_file()` with the provided root
+- The result key for each file is the relative path from root
+
+### Example
+
+```python
+from docugen.core.scanner import scan_python_files
+from docugen.core.parser import parse_project
+
+# Scan and parse entire project
+files = scan_python_files("~/my-project")
+parsed = parse_project(files, root="~/my-project")
+
+print(f"Parsed {len(parsed)} files")
+
+# Iterate through parsed files
+for relative_path, data in parsed.items():
+    print(f"\n{relative_path}:")
+    print(f"  Lines: {data['metrics']['line_count']}")
+    print(f"  Classes: {data['metrics']['class_count']}")
+    print(f"  Functions: {data['metrics']['function_count']}")
+    
+    if data["errors"]:
+        print(f"  Errors: {', '.join(data['errors'])}")
+```
+
+---
+
+## Helper Functions
+
+The module includes several internal helper functions:
+
+### _safe_unparse()
+
+**Location:** `docugen/core/parser.py:8`
+
+```python
+def _safe_unparse(node: ast.AST | None) -> str
+```
+
+Safely converts an AST node to its string representation. Returns empty string if node is `None` or unparsing fails.
+
+### _read_source()
+
+**Location:** `docugen/core/parser.py:17`
+
+```python
+def _read_source(path: Path) -> str
+```
+
+Reads a Python file with UTF-8 encoding and error replacement. Used internally to read source code before parsing.
+
+### _extract_arguments()
+
+**Location:** `docugen/core/parser.py:21`
+
+```python
+def _extract_arguments(
+    node: ast.FunctionDef | ast.AsyncFunctionDef
+) -> list[dict[str, Any]]
+```
+
+Extracts all arguments from a function/method AST node, including:
+- Positional-only arguments
+- Regular positional arguments
+- `*args` (var_positional)
+- Keyword-only arguments
+- `**kwargs` (var_keyword)
+
+Returns list of argument dictionaries with name, annotation, default, and kind.
+
+### _extract_function()
+
+**Location:** `docugen/core/parser.py:71`
+
+```python
+def _extract_function(
+    node: ast.FunctionDef | ast.AsyncFunctionDef
+) -> dict[str, Any]
+```
+
+Extracts complete function metadata from an AST node, including name, arguments, return type, docstring, and async status.
+
+---
+
+## Usage Notes
+
+- The parser uses Python's built-in `ast` module for accurate parsing
+- Type annotations are preserved as strings (unparsed AST)
+- All exceptions during parsing are caught and returned in the `errors` field
+- The parser supports both synchronous and asynchronous functions
+- Nested functions and classes are not extracted (only top-level items)

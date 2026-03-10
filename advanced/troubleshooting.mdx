@@ -1,0 +1,653 @@
+---
+title: 'Troubleshooting'
+description: 'Common issues and solutions for DocuGen AI'
+---
+
+## Overview
+
+This guide covers common errors, their causes, and solutions when using DocuGen AI.
+
+## API Key Errors
+
+<AccordionGroup>
+  <Accordion title="ValueError: GEMINI_API_KEY is required" icon="key">
+    **Error Message:**
+    ```
+    ValueError: GEMINI_API_KEY is required.
+    ```
+
+    **Cause:**
+    
+    The Gemini API key was not provided or is empty. This check occurs in `GeminiClient.__init__()` (docugen/api/gemini_client.py:31):
+
+    ```python
+    if not api_key or not api_key.strip():
+        raise ValueError("GEMINI_API_KEY is required.")
+    ```
+
+    **Solutions:**
+
+    <Steps>
+      <Step title="Set Environment Variable">
+        ```bash
+        export GEMINI_API_KEY="your-api-key-here"
+        ```
+      </Step>
+      
+      <Step title="Verify in Python">
+        ```python
+        import os
+        print(os.getenv("GEMINI_API_KEY"))  # Should not be None
+        ```
+      </Step>
+      
+      <Step title="Pass Directly to Client">
+        ```python
+        from docugen.api.gemini_client import GeminiClient
+        
+        client = GeminiClient(api_key="your-api-key-here")
+        ```
+      </Step>
+    </Steps>
+
+    <Tip>
+      Store your API key in a `.env` file and use `python-dotenv` to load it:
+      ```python
+      from dotenv import load_dotenv
+      load_dotenv()
+      ```
+    </Tip>
+  </Accordion>
+
+  <Accordion title="RuntimeError: google-genai is not installed" icon="package">
+    **Error Message:**
+    ```
+    RuntimeError: google-genai is not installed. Install dependencies first.
+    ```
+
+    **Cause:**
+    
+    The `google-genai` package is not installed. This is checked in `GeminiClient._build_client()` (docugen/api/gemini_client.py:40):
+
+    ```python
+    if genai is None:
+        raise RuntimeError("google-genai is not installed. Install dependencies first.")
+    ```
+
+    **Solutions:**
+
+    <CodeGroup>
+    ```bash pip
+    pip install google-genai
+    ```
+
+    ```bash poetry
+    poetry add google-genai
+    ```
+
+    ```bash uv
+    uv pip install google-genai
+    ```
+    </CodeGroup>
+
+    <Note>
+      If you installed DocuGen with `pip install docugen`, the dependency should be included. This error typically occurs in development or when dependencies are manually managed.
+    </Note>
+  </Accordion>
+
+  <Accordion title="RuntimeError: Gemini API call failed" icon="cloud-exclamation">
+    **Error Message:**
+    ```
+    RuntimeError: Gemini API call failed: [specific error]
+    ```
+
+    **Cause:**
+    
+    The Gemini API request failed. This can happen in `GeminiClient.generate_markdown()` (docugen/api/gemini_client.py:86):
+
+    ```python
+    try:
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=content,
+            config={"system_instruction": self.system_prompt},
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Gemini API call failed: {exc}") from exc
+    ```
+
+    **Common Causes & Solutions:**
+
+    | Error | Cause | Solution |
+    |-------|-------|----------|
+    | `401 Unauthorized` | Invalid API key | Verify your API key at [Google AI Studio](https://aistudio.google.com/apikey) |
+    | `429 Too Many Requests` | Rate limit exceeded | Wait and retry, or upgrade your quota |
+    | `400 Bad Request` | Invalid model name | Check model name (default: `gemini-3.1-flash-lite-preview`) |
+    | `503 Service Unavailable` | Temporary outage | Retry after a few minutes |
+
+    **Debugging:**
+
+    ```python
+    from docugen.api.gemini_client import GeminiClient
+    
+    try:
+        client = GeminiClient(api_key="your-key")
+        result = client.generate_markdown(
+            project_metadata={"files": []},
+            user_prompt="Test"
+        )
+    except RuntimeError as e:
+        print(f"API Error: {e}")
+        print(f"Cause: {e.__cause__}")
+    ```
+  </Accordion>
+
+  <Accordion title="RuntimeError: Gemini response did not include text content" icon="file-slash">
+    **Error Message:**
+    ```
+    RuntimeError: Gemini response did not include text content.
+    ```
+
+    **Cause:**
+    
+    The API returned a response without text content. This is detected in `GeminiClient._extract_text()` (docugen/api/gemini_client.py:75):
+
+    ```python
+    raise RuntimeError("Gemini response did not include text content.")
+    ```
+
+    **Possible Reasons:**
+    - Content filtered by safety settings
+    - Model returned empty response
+    - API returned unexpected response structure
+
+    **Solutions:**
+
+    1. **Check for content filtering:**
+       ```python
+       response = client.client.models.generate_content(...)
+       if hasattr(response, 'prompt_feedback'):
+           print(response.prompt_feedback)
+       ```
+
+    2. **Simplify input:**
+       Try with minimal metadata to isolate the issue
+
+    3. **Try different model:**
+       ```python
+       client = GeminiClient(
+           api_key="your-key",
+           model="gemini-1.5-flash"  # Alternative model
+       )
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Parsing Errors
+
+<AccordionGroup>
+  <Accordion title="SyntaxError during file parsing" icon="code">
+    **Error Message:**
+    ```
+    SyntaxError at line 42, column 8: invalid syntax
+    ```
+
+    **Cause:**
+    
+    A Python file contains syntax errors. Detected in `parse_file()` (docugen/core/parser.py:115):
+
+    ```python
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as exc:
+        message = f"SyntaxError at line {exc.lineno}, column {exc.offset}: {exc.msg}"
+        result["errors"].append(message)
+        return result
+    ```
+
+    **Solutions:**
+
+    <Steps>
+      <Step title="Locate the file">
+        Check the parsing results for the file path:
+        ```python
+        result = parse_file("problematic_file.py")
+        print(result["errors"])
+        ```
+      </Step>
+      
+      <Step title="Fix syntax errors">
+        Open the file at the specified line and column, fix the syntax error
+      </Step>
+      
+      <Step title="Exclude the file">
+        Add to `.gitignore` if the file shouldn't be documented:
+        ```gitignore
+        problematic_file.py
+        ```
+      </Step>
+    </Steps>
+
+    <Note>
+      DocuGen continues processing other files when it encounters a syntax error. The error is recorded in the `errors` list but doesn't stop the entire scan.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Cannot read file: OSError" icon="file-xmark">
+    **Error Message:**
+    ```
+    Cannot read file: [Errno 13] Permission denied: 'file.py'
+    ```
+
+    **Cause:**
+    
+    File cannot be read due to permissions or I/O errors. Caught in `parse_file()` (docugen/core/parser.py:107):
+
+    ```python
+    try:
+        source = _read_source(path)
+    except OSError as exc:
+        result["errors"].append(f"Cannot read file: {exc}")
+        return result
+    ```
+
+    **Solutions:**
+
+    1. **Check permissions:**
+       ```bash
+       ls -l problematic_file.py
+       chmod 644 problematic_file.py  # Add read permission
+       ```
+
+    2. **Verify file exists:**
+       ```bash
+       test -f problematic_file.py && echo "exists" || echo "missing"
+       ```
+
+    3. **Exclude from scan:**
+       ```gitignore
+       problematic_file.py
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## File Discovery Issues
+
+<AccordionGroup>
+  <Accordion title="FileNotFoundError: Path does not exist" icon="folder-xmark">
+    **Error Message:**
+    ```
+    FileNotFoundError: Path does not exist: /path/to/project
+    ```
+
+    **Cause:**
+    
+    The specified path doesn't exist. Raised in `scan_python_files()` (docugen/core/scanner.py:98):
+
+    ```python
+    if not root.exists():
+        raise FileNotFoundError(f"Path does not exist: {root}")
+    ```
+
+    **Solutions:**
+
+    1. **Verify path:**
+       ```python
+       from pathlib import Path
+       path = Path("/path/to/project")
+       print(f"Exists: {path.exists()}")
+       print(f"Resolved: {path.resolve()}")
+       ```
+
+    2. **Use correct path:**
+       ```python
+       # Relative to current directory
+       scan_python_files("./my_project")
+       
+       # Absolute path
+       scan_python_files("/home/user/projects/my_project")
+       
+       # With home expansion
+       scan_python_files("~/projects/my_project")
+       ```
+  </Accordion>
+
+  <Accordion title="No Python files found" icon="magnifying-glass">
+    **Symptom:**
+    
+    `scan_python_files()` returns an empty list.
+
+    **Possible Causes:**
+
+    1. **No `.py` files in directory**
+       - Verify files exist: `find /path/to/project -name "*.py"`
+
+    2. **All files ignored by .gitignore**
+       - Review `.gitignore` patterns
+       - Test with empty `.gitignore`
+
+    3. **Files in default-ignored directories**
+       - Check if files are in `__pycache__`, `.venv`, etc.
+
+    **Debugging:**
+
+    ```python
+    from docugen.core.scanner import scan_python_files
+    import os
+    
+    root = "/path/to/project"
+    
+    # Manual scan
+    all_py_files = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        for f in filenames:
+            if f.endswith(".py"):
+                all_py_files.append(os.path.join(dirpath, f))
+    
+    print(f"Total .py files: {len(all_py_files)}")
+    
+    # DocuGen scan
+    found = scan_python_files(root)
+    print(f"DocuGen found: {len(found)}")
+    print(f"Difference: {len(all_py_files) - len(found)}")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Template Errors
+
+<AccordionGroup>
+  <Accordion title="TemplateNotFound" icon="file-circle-question">
+    **Error Message:**
+    ```
+    jinja2.exceptions.TemplateNotFound: custom_template.md.j2
+    ```
+
+    **Cause:**
+    
+    The specified template file doesn't exist in the template directory.
+
+    **Solutions:**
+
+    1. **Verify template location:**
+       ```python
+       from pathlib import Path
+       from docugen.templates.engine import TemplateEngine
+       
+       engine = TemplateEngine(template_dir="/path/to/templates")
+       template_dir = Path(engine.environment.loader.searchpath[0])
+       
+       print(f"Template directory: {template_dir}")
+       print(f"Templates available: {list(template_dir.glob('*.j2'))}")
+       ```
+
+    2. **Use default template:**
+       ```python
+       from docugen.templates.engine import DEFAULT_TEMPLATE, render_readme
+       
+       output = render_readme(
+           ai_content="Content",
+           project_name="Project"
+       )
+       ```
+
+    3. **Provide full path:**
+       ```python
+       engine = TemplateEngine(template_dir="/absolute/path/to/templates")
+       ```
+  </Accordion>
+
+  <Accordion title="TemplateSyntaxError" icon="brackets-curly">
+    **Error Message:**
+    ```
+    jinja2.exceptions.TemplateSyntaxError: expected token 'end of statement block', got 'string'
+    ```
+
+    **Cause:**
+    
+    Invalid Jinja2 syntax in template file.
+
+    **Common Mistakes:**
+
+    | Error | Wrong | Correct |
+    |-------|-------|--------|
+    | Missing closing tag | `{% if x %}` | `{% if x %}...{% endif %}` |
+    | Invalid filter | `{{ x \| invalid }}` | `{{ x \| upper }}` |
+    | Wrong delimiter | `{{{ variable }}}` | `{{ variable }}` |
+    | Unclosed quote | `{{ "text }}` | `{{ "text" }}` |
+
+    **Solutions:**
+
+    1. **Validate syntax:**
+       ```python
+       from jinja2 import Environment, TemplateSyntaxError
+       
+       env = Environment()
+       try:
+           env.parse("{% if x %} content {% endif %}")
+           print("Valid syntax")
+       except TemplateSyntaxError as e:
+           print(f"Syntax error: {e}")
+       ```
+
+    2. **Test incrementally:**
+       Start with a minimal template and add complexity gradually
+  </Accordion>
+
+  <Accordion title="UndefinedError: variable not defined" icon="circle-exclamation">
+    **Error Message:**
+    ```
+    jinja2.exceptions.UndefinedError: 'unknown_var' is undefined
+    ```
+
+    **Cause:**
+    
+    Template references a variable not in the context.
+
+    **Solutions:**
+
+    1. **Add missing variable:**
+       ```python
+       engine.render(
+           "template.md.j2",
+           {
+               "project_name": "Project",
+               "unknown_var": "value",  # Add this
+           }
+       )
+       ```
+
+    2. **Use conditional checks:**
+       ```jinja2
+       {% if unknown_var is defined %}
+       {{ unknown_var }}
+       {% else %}
+       Default value
+       {% endif %}
+       ```
+
+    3. **Provide default:**
+       ```jinja2
+       {{ unknown_var | default("default value") }}
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Issues
+
+<AccordionGroup>
+  <Accordion title="Slow scanning on large repositories" icon="gauge-low">
+    **Symptom:**
+    
+    `scan_python_files()` takes a long time on large codebases.
+
+    **Causes:**
+    - Many files to scan
+    - Complex `.gitignore` rules
+    - Slow filesystem (network drives)
+
+    **Solutions:**
+
+    1. **Improve .gitignore:**
+       ```gitignore
+       # Ignore large directories early
+       /node_modules/
+       /vendor/
+       /third_party/
+       ```
+
+    2. **Scan specific subdirectory:**
+       ```python
+       # Instead of entire repo
+       scan_python_files("/repo/src")
+       ```
+
+    3. **Monitor progress:**
+       ```python
+       from docugen.core.scanner import scan_python_files
+       import time
+       
+       start = time.time()
+       files = scan_python_files("/path")
+       duration = time.time() - start
+       
+       print(f"Scanned {len(files)} files in {duration:.2f}s")
+       print(f"Rate: {len(files)/duration:.1f} files/sec")
+       ```
+  </Accordion>
+
+  <Accordion title="API timeout or rate limiting" icon="clock">
+    **Symptom:**
+    
+    Gemini API calls fail with timeout or rate limit errors.
+
+    **Solutions:**
+
+    1. **Batch processing:**
+       ```python
+       import time
+       from docugen.api.gemini_client import GeminiClient
+       
+       client = GeminiClient(api_key="key")
+       
+       for i, metadata in enumerate(metadata_chunks):
+           result = client.generate_markdown(metadata)
+           
+           # Rate limit: wait between requests
+           if i < len(metadata_chunks) - 1:
+               time.sleep(2)  # 2 second delay
+       ```
+
+    2. **Reduce input size:**
+       ```python
+       # Split large projects into smaller chunks
+       small_metadata = {
+           "files": metadata["files"][:10]  # First 10 files only
+       }
+       ```
+
+    3. **Upgrade quota:**
+       Visit [Google AI Studio](https://aistudio.google.com/) to increase rate limits
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Check Logs" icon="file-lines">
+    Enable verbose logging to debug issues:
+    ```python
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    ```
+  </Card>
+
+  <Card title="Minimal Reproduction" icon="flask-vial">
+    Create a minimal test case:
+    ```python
+    from docugen.core.scanner import scan_python_files
+    files = scan_python_files("/small/test/project")
+    print(len(files))
+    ```
+  </Card>
+
+  <Card title="GitHub Issues" icon="github">
+    Report bugs with:
+    - Error message
+    - Python version
+    - DocuGen version
+    - Minimal reproduction
+  </Card>
+
+  <Card title="Community Support" icon="comments">
+    Ask questions:
+    - Stack Overflow (tag: `docugen`)
+    - GitHub Discussions
+    - Discord community
+  </Card>
+</CardGroup>
+
+## Diagnostic Commands
+
+### Environment Check
+
+```python
+import sys
+import os
+from pathlib import Path
+
+print(f"Python version: {sys.version}")
+print(f"Working directory: {Path.cwd()}")
+print(f"GEMINI_API_KEY set: {bool(os.getenv('GEMINI_API_KEY'))}")
+
+try:
+    from google import genai
+    print(f"google-genai: installed")
+except ImportError:
+    print(f"google-genai: NOT INSTALLED")
+
+try:
+    from docugen import __version__
+    print(f"DocuGen version: {__version__}")
+except ImportError:
+    print(f"DocuGen: NOT INSTALLED")
+```
+
+### Full Pipeline Test
+
+```python
+from docugen.core.scanner import scan_python_files
+from docugen.core.parser import parse_project
+from docugen.api.gemini_client import GeminiClient
+from docugen.templates.engine import render_readme
+import os
+
+try:
+    # Step 1: Scan
+    print("[1/4] Scanning...")
+    files = scan_python_files("./test_project")
+    print(f"  Found {len(files)} files")
+    
+    # Step 2: Parse
+    print("[2/4] Parsing...")
+    metadata = parse_project(files, root="./test_project")
+    print(f"  Parsed {len(metadata)} files")
+    
+    # Step 3: Generate
+    print("[3/4] Generating documentation...")
+    client = GeminiClient(api_key=os.getenv("GEMINI_API_KEY"))
+    ai_content = client.generate_markdown(metadata)
+    print(f"  Generated {len(ai_content)} characters")
+    
+    # Step 4: Render
+    print("[4/4] Rendering README...")
+    readme = render_readme(ai_content, project_name="Test")
+    print(f"  Final README: {len(readme)} characters")
+    
+    print("\n✅ All steps successful!")
+    
+except Exception as e:
+    print(f"\n❌ Error: {type(e).__name__}: {e}")
+    import traceback
+    traceback.print_exc()
+```

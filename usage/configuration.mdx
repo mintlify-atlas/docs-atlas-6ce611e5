@@ -1,0 +1,461 @@
+---
+title: Configuration
+description: Configure DocuGen AI via CLI options, TOML files, and environment variables
+---
+
+## Configuration Overview
+
+DocuGen AI supports multiple configuration methods with a clear precedence order. This allows you to set defaults globally while overriding them per-project or per-command.
+
+### Configuration Precedence
+
+Configuration values are resolved in the following order (highest to lowest priority):
+
+1. **CLI arguments** - Direct command-line options
+2. **TOML configuration files** - Project or user config files
+3. **Default values** - Built-in defaults
+
+---
+
+## Configuration Methods
+
+<Tabs>
+  <Tab title="CLI Arguments">
+    ### Command-Line Options
+    
+    The most direct way to configure DocuGen is via CLI arguments. These always take precedence over other configuration methods.
+    
+    ```bash
+    docugen generate . \
+      --output DOCS.md \
+      --model gemini-pro \
+      --prompt "Focus on API documentation"
+    ```
+    
+    **Available CLI options:**
+    - `--output`, `-o` - Output file path
+    - `--model` - Gemini model name
+    - `--prompt`, `-p` - Additional AI instructions
+    - `--config` - Path to TOML config file
+    
+    See [CLI Reference](/usage/cli-reference) for complete details.
+  </Tab>
+  
+  <Tab title="TOML Files">
+    ### TOML Configuration Files
+    
+    TOML files provide a convenient way to set default configurations for projects or your user account.
+    
+    #### Configuration File Locations
+    
+    DocuGen searches for TOML configuration files in this order:
+    
+    1. **Explicit path** (via `--config` option or `DOCUGEN_CONFIG` env var)
+    2. **Current directory:** `./.docugen.toml`
+    3. **User config directory:** `~/.config/docugen/config.toml`
+    4. **User home directory:** `~/.docugen.toml`
+    
+    The first file found is used. Values from the file are merged and used as defaults.
+    
+    #### TOML File Format
+    
+    **Option 1: Flat structure**
+    ```toml
+    model = "gemini-pro"
+    output = "DOCUMENTATION.md"
+    ```
+    
+    **Option 2: Nested under `[docugen]` section**
+    ```toml
+    [docugen]
+    model = "gemini-pro"
+    output = "DOCUMENTATION.md"
+    ```
+    
+    **Option 3: Mixed (nested values override flat values)**
+    ```toml
+    model = "gemini-3.1-flash-lite-preview"
+    
+    [docugen]
+    model = "gemini-pro"  # This takes precedence
+    output = "README.md"
+    ```
+    
+    #### Available TOML Keys
+    
+    | Key | Type | Description | Default |
+    |-----|------|-------------|---------|
+    | `model` | string | Gemini model name | `"gemini-3.1-flash-lite-preview"` |
+    | `output` | string | Output file path | `"README.md"` |
+    
+    <Note>
+      The `--prompt` option is typically unique per-generation and is not commonly set in TOML files.
+    </Note>
+  </Tab>
+  
+  <Tab title="Environment Variables">
+    ### Environment Variables
+    
+    DocuGen uses environment variables for sensitive configuration like API keys and for specifying configuration file paths.
+    
+    #### API Key Configuration
+    
+    <ParamField path="GEMINI_API_KEY" type="string" required>
+      Your Google Gemini API key. This is **required** for DocuGen to function.
+      
+      **Setting the variable:**
+      ```bash
+      # Linux/macOS
+      export GEMINI_API_KEY="your-api-key-here"
+      
+      # Windows (Command Prompt)
+      set GEMINI_API_KEY=your-api-key-here
+      
+      # Windows (PowerShell)
+      $env:GEMINI_API_KEY="your-api-key-here"
+      ```
+      
+      <Warning>
+        Never commit your API key to version control. Use environment variables or `.env` files (which should be in `.gitignore`).
+      </Warning>
+    </ParamField>
+    
+    #### Configuration Path Variables
+    
+    <ParamField path="DOCUGEN_CONFIG" type="string" optional>
+      Specifies a custom TOML configuration file path. This takes precedence over the default search locations.
+      
+      ```bash
+      export DOCUGEN_CONFIG="/path/to/custom/config.toml"
+      docugen generate .
+      ```
+    </ParamField>
+    
+    <ParamField path="DOCUGEN_DOTENV" type="string" optional>
+      Specifies a custom `.env` file path for loading environment variables.
+      
+      ```bash
+      export DOCUGEN_DOTENV="/path/to/custom/.env"
+      docugen generate .
+      ```
+    </ParamField>
+  </Tab>
+  
+  <Tab title=".env Files">
+    ### .env Files
+    
+    For convenience, DocuGen can load environment variables from `.env` files. This is particularly useful for the `GEMINI_API_KEY`.
+    
+    #### .env File Locations
+    
+    DocuGen searches for `.env` files in this order:
+    
+    1. **Explicit path** (via `DOCUGEN_DOTENV` environment variable)
+    2. **Current working directory:** `./.env`
+    3. **DocuGen installation directory:** `<docugen-root>/.env`
+    
+    The first file found is parsed for environment variables.
+    
+    #### .env File Format
+    
+    ```bash
+    # Google Gemini API Key (required)
+    GEMINI_API_KEY=your-api-key-here
+    
+    # Optional: specify custom config location
+    DOCUGEN_CONFIG=/path/to/config.toml
+    ```
+    
+    **Supported formats:**
+    - Standard format: `KEY=value`
+    - With quotes: `KEY="value"` or `KEY='value'`
+    - With export: `export KEY=value`
+    - Comments: Lines starting with `#` are ignored
+    
+    #### Creating a .env File
+    
+    <CodeGroup>
+    
+    ```bash Project Directory
+    # Create .env in your project
+    cd /path/to/your/project
+    echo 'GEMINI_API_KEY=your-api-key-here' > .env
+    
+    # Add to .gitignore
+    echo '.env' >> .gitignore
+    ```
+    
+    ```bash Template
+    # .env.example (commit this as a template)
+    GEMINI_API_KEY=your-key-here
+    
+    # .env (don't commit this)
+    GEMINI_API_KEY=actual-secret-key
+    ```
+    
+    </CodeGroup>
+    
+    <Warning>
+      Always add `.env` to your `.gitignore` file to prevent accidentally committing sensitive API keys.
+    </Warning>
+  </Tab>
+</Tabs>
+
+---
+
+## Configuration Parameters
+
+### API Key
+
+<ParamField path="api_key" type="string" required>
+  **Source:** `GEMINI_API_KEY` environment variable or `.env` file
+  
+  Your Google Gemini API key. Obtain one from [Google AI Studio](https://aistudio.google.com/app/apikey).
+  
+  **Resolution order:**
+  1. `GEMINI_API_KEY` environment variable
+  2. `GEMINI_API_KEY` in `.env` file (current directory)
+  3. `GEMINI_API_KEY` in `.env` file (DocuGen installation directory)
+</ParamField>
+
+### Model
+
+<ParamField path="model" type="string" default="gemini-3.1-flash-lite-preview">
+  **Sources:** CLI `--model`, TOML `model` key
+  
+  The Gemini model to use for generating documentation.
+  
+  **Popular options:**
+  - `gemini-3.1-flash-lite-preview` - Fastest, recommended for most projects
+  - `gemini-pro` - Balanced performance and quality
+  - `gemini-ultra` - Highest quality, slower
+  
+  **Resolution order:**
+  1. `--model` CLI argument
+  2. `model` in TOML config file
+  3. Default: `"gemini-3.1-flash-lite-preview"`
+</ParamField>
+
+### Output Path
+
+<ParamField path="output" type="string" default="README.md">
+  **Sources:** CLI `--output`, TOML `output` key
+  
+  Path where the generated documentation will be written.
+  
+  - Relative paths are resolved from the project directory
+  - Absolute paths are used as-is
+  - Parent directories are created automatically
+  
+  **Resolution order:**
+  1. `--output` (or `-o`) CLI argument
+  2. `output` in TOML config file
+  3. Default: `"README.md"`
+</ParamField>
+
+### Custom Prompt
+
+<ParamField path="prompt" type="string" optional>
+  **Source:** CLI `--prompt` only
+  
+  Additional instructions for the AI to customize the generated documentation.
+  
+  This parameter is only available via CLI (not TOML) as it's typically unique per-generation.
+</ParamField>
+
+---
+
+## Complete Configuration Examples
+
+### Example 1: Personal Development Setup
+
+**~/.config/docugen/config.toml:**
+```toml
+[docugen]
+model = "gemini-pro"
+output = "README.md"
+```
+
+**~/.zshrc or ~/.bashrc:**
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+**Usage:**
+```bash
+# Uses your personal config and API key
+docugen generate .
+```
+
+---
+
+### Example 2: Project-Specific Configuration
+
+**Project structure:**
+```
+my_project/
+├── .env
+├── .docugen.toml
+├── .gitignore
+└── src/
+```
+
+**.env:**
+```bash
+GEMINI_API_KEY=project-specific-key
+```
+
+**.docugen.toml:**
+```toml
+model = "gemini-ultra"
+output = "docs/API_REFERENCE.md"
+```
+
+**.gitignore:**
+```
+.env
+```
+
+**Usage:**
+```bash
+cd my_project
+docugen generate ./src
+# Generates: my_project/docs/API_REFERENCE.md
+# Uses: gemini-ultra model and project-specific API key
+```
+
+---
+
+### Example 3: Team Shared Configuration
+
+**Committed to repository:**
+
+**.docugen.toml:**
+```toml
+# Team defaults
+model = "gemini-pro"
+output = "docs/README.md"
+```
+
+**.env.example:**
+```bash
+# Copy to .env and add your key
+GEMINI_API_KEY=your-key-here
+```
+
+**.gitignore:**
+```
+.env
+```
+
+**Each developer creates their own .env:**
+```bash
+cp .env.example .env
+# Edit .env with your personal API key
+```
+
+---
+
+### Example 4: Override Everything via CLI
+
+```bash
+# CLI arguments override all configuration files
+docugen generate ./src \
+  --config /custom/config.toml \
+  --model gemini-pro \
+  --output /tmp/docs.md \
+  --prompt "Focus on async patterns"
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Missing GEMINI_API_KEY error">
+    **Error:** `Missing GEMINI_API_KEY (set it in environment or .env).`
+    
+    **Solutions:**
+    1. Set the environment variable:
+       ```bash
+       export GEMINI_API_KEY="your-key"
+       ```
+    
+    2. Create a `.env` file in your project directory:
+       ```bash
+       echo 'GEMINI_API_KEY=your-key' > .env
+       ```
+    
+    3. Verify the variable is set:
+       ```bash
+       echo $GEMINI_API_KEY
+       ```
+  </Accordion>
+  
+  <Accordion title="Configuration file not found">
+    **Issue:** DocuGen isn't using your TOML configuration.
+    
+    **Check:**
+    1. Verify the file exists in one of the search locations:
+       ```bash
+       ls -la .docugen.toml
+       ls -la ~/.config/docugen/config.toml
+       ls -la ~/.docugen.toml
+       ```
+    
+    2. Check for TOML syntax errors:
+       ```bash
+       # Invalid TOML will be silently ignored
+       # Verify syntax at: https://www.toml-lint.com/
+       ```
+    
+    3. Specify explicitly:
+       ```bash
+       docugen generate . --config ./path/to/config.toml
+       ```
+  </Accordion>
+  
+  <Accordion title=".env file not being loaded">
+    **Issue:** Environment variables from `.env` aren't being used.
+    
+    **Solutions:**
+    1. Verify file location:
+       ```bash
+       ls -la .env
+       ```
+    
+    2. Check file format (no spaces around `=`):
+       ```bash
+       cat .env
+       # Correct: GEMINI_API_KEY=value
+       # Wrong:   GEMINI_API_KEY = value
+       ```
+    
+    3. Specify explicitly:
+       ```bash
+       export DOCUGEN_DOTENV="./path/to/.env"
+       ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use .env for Secrets" icon="key">
+    Store API keys in `.env` files and add them to `.gitignore`. Never commit secrets to version control.
+  </Card>
+  
+  <Card title="Use TOML for Defaults" icon="file">
+    Set project or user defaults in TOML files. Commit project configs (without secrets) to share with team.
+  </Card>
+  
+  <Card title="Use CLI for Overrides" icon="terminal">
+    Override defaults with CLI arguments for one-off customizations or testing.
+  </Card>
+  
+  <Card title="Document for Teams" icon="users">
+    Include `.env.example` and `.docugen.toml` in your repository to help team members get started quickly.
+  </Card>
+</CardGroup>

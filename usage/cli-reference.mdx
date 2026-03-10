@@ -1,0 +1,188 @@
+---
+title: CLI Reference
+description: Complete command-line interface reference for DocuGen AI
+---
+
+## Overview
+
+DocuGen AI provides a command-line interface for generating technical documentation from Python projects. The CLI is built with Typer and offers a simple yet powerful interface.
+
+## Installation
+
+After installing the package, the `docugen` command is available globally:
+
+```bash
+pip install docugen-ai
+```
+
+## Command Structure
+
+```bash
+docugen [COMMAND] [ARGUMENTS] [OPTIONS]
+```
+
+---
+
+## Commands
+
+### `generate`
+
+Generates a technical README file from a Python project by analyzing its source code.
+
+```bash
+docugen generate PATH [OPTIONS]
+```
+
+#### Arguments
+
+<ParamField path="PATH" type="string" required>
+  Path to the Python project directory to analyze. Can be absolute or relative.
+  
+  **Examples:**
+  - `.` - Current directory
+  - `./src` - Source subdirectory
+  - `/home/user/project` - Absolute path
+</ParamField>
+
+#### Options
+
+<ParamField path="--output" type="string" default="README.md">
+  **Aliases:** `-o`
+  
+  Output Markdown file name. Can be a filename or a path.
+  
+  - If relative, the file is created inside the project directory
+  - If absolute, the file is created at the specified location
+  - Parent directories are created automatically if they don't exist
+  
+  **Examples:**
+  ```bash
+  docugen generate . --output DOCUMENTATION.md
+  docugen generate . -o docs/README.md
+  docugen generate . -o /tmp/output.md
+  ```
+</ParamField>
+
+<ParamField path="--model" type="string" default="gemini-3.1-flash-lite-preview">
+  Gemini model name to use for content generation.
+  
+  **Supported models:**
+  - `gemini-3.1-flash-lite-preview` (default, fastest)
+  - `gemini-pro` (balanced performance)
+  - `gemini-ultra` (highest quality)
+  
+  **Examples:**
+  ```bash
+  docugen generate . --model gemini-pro
+  docugen generate . --model gemini-ultra
+  ```
+</ParamField>
+
+<ParamField path="--prompt" type="string" optional>
+  **Aliases:** `-p`
+  
+  Optional additional instruction to customize the AI's documentation generation. Use this to emphasize specific aspects or request particular formatting.
+  
+  **Examples:**
+  ```bash
+  docugen generate . --prompt "Focus on API security best practices"
+  docugen generate . -p "Include installation instructions for Windows"
+  docugen generate . -p "Emphasize performance optimizations"
+  ```
+</ParamField>
+
+<ParamField path="--config" type="path" optional>
+  Path to a TOML configuration file. If not specified, DocuGen will search for configuration files in standard locations.
+  
+  **Examples:**
+  ```bash
+  docugen generate . --config ./custom-config.toml
+  docugen generate . --config ~/.config/docugen/project.toml
+  ```
+</ParamField>
+
+---
+
+## Complete Examples
+
+<CodeGroup>
+
+```bash Basic Usage
+# Generate README.md in the current directory
+docugen generate .
+```
+
+```bash Custom Output
+# Generate documentation with custom filename
+docugen generate . --output DOCUMENTATION.md
+
+# Generate in a subdirectory
+docugen generate ./src -o docs/API.md
+```
+
+```bash Custom Model
+# Use a more powerful model
+docugen generate . --model gemini-pro
+```
+
+```bash With Custom Prompt
+# Add specific instructions for the AI
+docugen generate . \
+  --prompt "Emphasize security and error handling" \
+  --output SECURE_README.md
+```
+
+```bash Full Configuration
+# Complete example with all options
+docugen generate ./my_project \
+  --output documentation/README.md \
+  --model gemini-pro \
+  --prompt "Focus on architecture and design patterns" \
+  --config ./.docugen.toml
+```
+
+</CodeGroup>
+
+---
+
+## Exit Codes
+
+DocuGen uses standard exit codes to indicate success or failure:
+
+| Code | Meaning |
+|------|----------|
+| `0` | Success - Documentation generated successfully |
+| `1` | Error - Invalid path, missing API key, no Python files found, or generation failed |
+
+---
+
+## Output Information
+
+When generation completes successfully, DocuGen displays:
+
+- Location of the generated documentation file
+- Statistics about the analyzed project:
+  - Number of files scanned
+  - Number of classes found
+  - Number of functions found
+  - Number of methods found
+
+**Example output:**
+```
+✓ Documentation generated at: /home/user/project/README.md
+ℹ Scanned 15 files, 8 classes, 42 functions, 67 methods.
+```
+
+---
+
+## Help Command
+
+Get help information directly from the CLI:
+
+```bash
+# Show general help
+docugen --help
+
+# Show help for the generate command
+docugen generate --help
+```

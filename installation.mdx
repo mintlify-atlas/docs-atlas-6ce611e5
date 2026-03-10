@@ -1,0 +1,184 @@
+---
+title: Installation
+description: Install DocuGen AI and configure your environment
+---
+
+Get DocuGen AI up and running in minutes. This guide covers installation, prerequisites, and environment setup.
+
+## Prerequisites
+
+Before installing DocuGen AI, ensure you have the following:
+
+<CardGroup cols={2}>
+  <Card title="Python 3.11+" icon="python">
+    DocuGen AI requires Python version 3.11 or higher
+  </Card>
+  
+  <Card title="Gemini API Key" icon="key">
+    A valid Google Gemini API key for AI-powered generation
+  </Card>
+</CardGroup>
+
+<Note>
+  You can check your Python version by running `python --version` or `python3 --version` in your terminal.
+</Note>
+
+## Install via pip
+
+The easiest way to install DocuGen AI is using pip:
+
+```bash
+pip install docugen-ai
+```
+
+This will install DocuGen AI and all its dependencies:
+- `typer>=0.12.0` - CLI framework
+- `rich>=13.7.0` - Terminal formatting and output
+- `jinja2>=3.1.0` - Template engine
+- `google-genai>=1.0.0` - Google Gemini API client
+
+<Note>
+  It's recommended to install DocuGen AI in a virtual environment to avoid dependency conflicts.
+</Note>
+
+## Installation with Virtual Environment
+
+For a cleaner installation, use a Python virtual environment:
+
+<Steps>
+  <Step title="Create a virtual environment">
+    ```bash
+    python -m venv venv
+    ```
+  </Step>
+  
+  <Step title="Activate the virtual environment">
+    <CodeGroup>
+      ```bash Linux/macOS
+      source venv/bin/activate
+      ```
+      
+      ```bash Windows
+      venv\Scripts\activate
+      ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Install DocuGen AI">
+    ```bash
+    pip install docugen-ai
+    ```
+  </Step>
+</Steps>
+
+## Gemini API Key Setup
+
+DocuGen AI requires a Google Gemini API key to function. You can obtain one from [Google AI Studio](https://makersuite.google.com/app/apikey).
+
+<Warning>
+  Without a valid API key, DocuGen AI will not be able to generate documentation. The tool will exit with an error: `Missing GEMINI_API_KEY (set it in environment or .env).`
+</Warning>
+
+### Option 1: Environment Variable
+
+Set the API key as an environment variable:
+
+<CodeGroup>
+  ```bash Linux/macOS
+  export GEMINI_API_KEY="your-api-key-here"
+  ```
+  
+  ```bash Windows (PowerShell)
+  $env:GEMINI_API_KEY="your-api-key-here"
+  ```
+  
+  ```bash Windows (CMD)
+  set GEMINI_API_KEY=your-api-key-here
+  ```
+</CodeGroup>
+
+### Option 2: .env File
+
+Create a `.env` file in your project root:
+
+```bash .env
+GEMINI_API_KEY=your-api-key-here
+```
+
+DocuGen AI will automatically load the API key from the `.env` file when running.
+
+<Tip>
+  Add `.env` to your `.gitignore` file to prevent accidentally committing your API key to version control.
+</Tip>
+
+## Verify Installation
+
+Verify that DocuGen AI is installed correctly:
+
+```bash
+docugen --help
+```
+
+You should see output similar to:
+
+```
+Usage: docugen [OPTIONS] COMMAND [ARGS]...
+
+  Generate technical README files from Python projects.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  generate  Generate documentation for a Python project
+```
+
+## Development Installation
+
+If you want to contribute to DocuGen AI or install from source:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/your-username/docugen-ai.git
+    cd docugen-ai
+    ```
+  </Step>
+  
+  <Step title="Create a virtual environment">
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    ```
+  </Step>
+  
+  <Step title="Install in editable mode with dev dependencies">
+    ```bash
+    pip install -e ".[dev]"
+    ```
+    
+    This installs DocuGen AI along with development dependencies like `pytest>=8.0.0`.
+  </Step>
+  
+  <Step title="Run tests to verify setup">
+    ```bash
+    pytest
+    ```
+  </Step>
+</Steps>
+
+## Configuration Files (Optional)
+
+DocuGen AI supports TOML configuration files for advanced customization. You can specify a config file using the `--config` flag:
+
+```bash
+docugen generate ./my-project --config config.toml
+```
+
+This allows you to pre-configure settings like model selection and output paths without specifying them on the command line each time.
+
+## Next Steps
+
+<Card title="Quick Start" icon="rocket" href="/quickstart">
+  Now that you have DocuGen AI installed, follow the Quick Start guide to generate your first documentation
+</Card>

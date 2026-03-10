@@ -1,0 +1,214 @@
+---
+title: "Configuration Manager"
+description: "Runtime configuration loading with environment variables, TOML files, and CLI overrides"
+---
+
+## Overview
+
+The configuration manager handles loading and merging settings from multiple sources with a well-defined precedence order. It supports TOML configuration files, environment variables, and `.env` files.
+
+**Source:** `docugen/utils/config_manager.py`
+
+---
+
+## RuntimeConfig
+
+```python
+@dataclass(frozen=True)
+class RuntimeConfig:
+    api_key: str
+    model: str
+    output: str
+```
+
+Immutable dataclass containing resolved runtime configuration.
+
+### Fields
+
+<ParamField path="api_key" type="str" required>
+  Gemini API key for authentication. Must be set via environment variable or `.env` file.
+</ParamField>
+
+<ParamField path="model" type="str" required>
+  Gemini model identifier (e.g., `"gemini-2.0-flash-exp"`). Falls back to `DEFAULT_MODEL` if not specified.
+</ParamField>
+
+<ParamField path="output" type="str" required>
+  Output file path for generated documentation. Defaults to `"README.md"`.
+</ParamField>
+
+### Example
+
+```python
+from docugen.utils.config_manager import RuntimeConfig
+
+config = RuntimeConfig(
+    api_key="your-api-key",
+    model="gemini-2.0-flash-exp",
+    output="docs/README.md"
+)
+
+print(config.api_key)  # "your-api-key"
+print(config.model)    # "gemini-2.0-flash-exp"
+
+# Config is immutable
+# config.model = "other"  # Raises FrozenInstanceError
+```
+
+---
+
+## load_runtime_config()
+
+```python
+def load_runtime_config(
+    cli_model: str | None,
+    cli_output: str | None,
+    config_path: Path | None = None
+) -> RuntimeConfig
+```
+
+Load and merge configuration from all available sources.
+
+### Parameters
+
+<ParamField path="cli_model" type="str | None" required>
+  Model name from CLI argument (`--model`). Takes highest precedence if provided.
+</ParamField>
+
+<ParamField path="cli_output" type="str | None" required>
+  Output path from CLI argument (`--output`). Takes highest precedence if provided.
+</ParamField>
+
+<ParamField path="config_path" type="Path | None" default="None">
+  Explicit path to TOML config file. If provided, only this file is checked (skips automatic discovery).
+</ParamField>
+
+### Returns
+
+<ResponseField name="return" type="RuntimeConfig">
+  Fully resolved configuration with all settings merged according to precedence rules.
+</ResponseField>
+
+### Configuration Precedence
+
+Settings are loaded in order from **lowest to highest priority**:
+
+1. **Default values** - Hardcoded fallbacks (`DEFAULT_MODEL`, `"README.md"`)
+2. **TOML config files** - Searched in order:
+   - `~/.docugen.toml`
+   - `~/.config/docugen/config.toml`
+   - `./.docugen.toml` (current directory)
+   - `$DOCUGEN_CONFIG` environment variable path
+   - Explicit `config_path` parameter
+3. **Environment variables & .env files** - For API key only:
+   - `.env` in project root
+   - `.env` in current directory
+   - `$DOCUGEN_DOTENV` environment variable path
+   - `$GEMINI_API_KEY` environment variable
+4. **CLI arguments** - Highest priority (overrides all other sources)
+
+### Example
+
+```python
+from pathlib import Path
+from docugen.utils.config_manager import load_runtime_config
+
+# Load with CLI overrides
+config = load_runtime_config(
+    cli_model="gemini-2.0-flash-thinking-exp",
+    cli_output="OUTPUT.md",
+    config_path=Path("custom-config.toml")
+)
+
+print(config.model)   # "gemini-2.0-flash-thinking-exp" (from CLI)
+print(config.output)  # "OUTPUT.md" (from CLI)
+print(config.api_key) # Loaded from env or .env file
+
+# Load with defaults and config file discovery
+config = load_runtime_config(
+    cli_model=None,
+    cli_output=None
+)
+# Uses values from discovered config files or defaults
+```
+
+---
+
+## TOML Configuration Format
+
+### Basic Format
+
+```toml
+model = "gemini-2.0-flash-exp"
+output = "docs/README.md"
+```
+
+### Nested Format (with [docugen] section)
+
+```toml
+[docugen]
+model = "gemini-2.0-flash-thinking-exp"
+output = "documentation.md"
+```
+
+Both formats are supported. The nested format allows other tools to share the same config file. Settings in the `[docugen]` section override top-level settings.
+
+---
+
+## Environment Variables
+
+### API Key Resolution
+
+<ParamField path="GEMINI_API_KEY" type="string">
+  Gemini API key. Checked in environment first, then in `.env` files.
+</ParamField>
+
+### Configuration Paths
+
+<ParamField path="DOCUGEN_CONFIG" type="string">
+  Path to custom TOML config file. Overrides automatic discovery.
+</ParamField>
+
+<ParamField path="DOCUGEN_DOTENV" type="string">
+  Path to custom `.env` file. If not set, searches current directory and project root.
+</ParamField>
+
+### Example .env File
+
+```bash
+# .env
+GEMINI_API_KEY=your-api-key-here
+
+# With export prefix (also supported)
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+---
+
+## Configuration Discovery
+
+### TOML Config Search Order
+
+1. `config_path` parameter (if provided) - **stops searching if found**
+2. `$DOCUGEN_CONFIG` environment variable
+3. `./.docugen.toml` (current directory)
+4. `~/.config/docugen/config.toml`
+5. `~/.docugen.toml` (home directory)
+
+All existing files are loaded and merged, with later files overriding earlier ones.
+
+### .env File Search Order
+
+1. `$DOCUGEN_DOTENV` environment variable
+2. `./.env` (current directory)
+3. `<project-root>/.env`
+
+First file with `GEMINI_API_KEY` is used; searching stops after first match.
+
+---
+
+## Related
+
+- [CLI Reference](/api/cli) - Command-line interface using this config
+- [Gemini Client](/api/gemini-client) - Uses `api_key` and `model` settings
+- [Template Engine](/api/template-engine) - Uses `output` setting
