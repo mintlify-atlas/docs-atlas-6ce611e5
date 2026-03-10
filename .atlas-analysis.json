@@ -1,0 +1,95 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "DocuGen AI",
+  "projectDescription": "AI-powered CLI tool that generates professional technical documentation from Python source code using AST analysis and Google Gemini.",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/ast-parsing",
+              "concepts/ai-generation"
+            ]
+          },
+          {
+            "group": "Usage",
+            "pages": [
+              "usage/cli-reference",
+              "usage/configuration",
+              "usage/examples"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/templates",
+              "advanced/gitignore-support",
+              "advanced/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Modules",
+            "pages": [
+              "api/scanner",
+              "api/parser",
+              "api/processor"
+            ]
+          },
+          {
+            "group": "AI Integration",
+            "pages": [
+              "api/gemini-client"
+            ]
+          },
+          {
+            "group": "Templates & Utils",
+            "pages": [
+              "api/template-engine",
+              "api/config-manager",
+              "api/logger"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Advanced AST analysis of Python source code",
+    "AI-powered documentation generation using Google Gemini",
+    "Smart .gitignore-aware file scanning",
+    "Flexible configuration via CLI arguments or TOML files",
+    "Extensible template engine using Jinja2",
+    "Detailed code structure extraction (classes, functions, methods, signatures)",
+    "Professional Markdown output generation"
+  ],
+  "publicApiSurface": [
+    "docugen generate [PATH] - Main CLI command to generate documentation",
+    "scan_python_files() - Discovers Python files respecting .gitignore rules",
+    "parse_project() - Extracts AST metadata from Python files",
+    "prepare_for_ai() - Normalizes parsed data for LLM consumption",
+    "GeminiClient.generate_markdown() - Generates documentation content via Gemini API",
+    "render_readme() - Renders final Markdown using Jinja2 templates",
+    "load_runtime_config() - Loads configuration from multiple sources"
+  ]
+}
